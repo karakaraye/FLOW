@@ -1,0 +1,427 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+model User {
+  id String @id
+  name String
+  email String @unique
+  emailVerified Boolean @default(false)
+  image String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+  accounts Account[]
+  memberships WorkspaceMember[]
+  platformAdministrator PlatformAdministrator?
+}
+model Session {
+  id String @id
+  token String @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+model Account {
+  id String @id
+  accountId String
+  providerId String
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken String?
+  refreshToken String?
+  idToken String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope String?
+  password String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+model Verification {
+  id String @id
+  identifier String
+  value String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([identifier])
+}
+model RateLimit {
+  id String @id @default(cuid())
+  key String @unique
+  count Int
+  lastRequest BigInt
+}
+model Workspace {
+  id String @id @default(cuid())
+  name String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members WorkspaceMember[]
+  subscription Subscription?
+  workflows Workflow[]
+  templateInstallations TemplateInstallation[]
+  integrations WorkspaceIntegration[]
+  integrationEvents IntegrationAuditEvent[]
+}
+model WorkspaceMember {
+  id String @id @default(cuid())
+  workspaceId String
+  userId String
+  role WorkspaceRole @default(VIEWER)
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+model SubscriptionPlan {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  monthlyPriceCents Int
+  currency String @default("USD")
+  createdAt DateTime @default(now())
+  subscriptions Subscription[]
+}
+model Subscription {
+  id String @id @default(cuid())
+  workspaceId String @unique
+  planId String
+  status SubscriptionStatus @default(TRIALING)
+  currentPeriodEnd DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  @@index([planId])
+}
+
+enum RunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+enum NodeStatus {
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+model Workflow {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name String
+  draft Json
+  editor Json @default("{}")
+  revision Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions WorkflowVersion[]
+  runs WorkflowRun[]
+  installation TemplateInstallation?
+  enabled Boolean @default(true)
+  archivedAt DateTime?
+  webhooks Webhook[]
+  @@unique([id, workspaceId])
+  @@index([workspaceId, createdAt])
+}
+model WorkflowVersion {
+  id String @id @default(cuid())
+  workflowId String
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  number Int
+  definition Json
+  editor Json @default("{}")
+  publishedAt DateTime @default(now())
+  runs WorkflowRun[]
+  webhooks Webhook[]
+  @@unique([workflowId, number])
+  @@unique([id, workflowId])
+}
+model WorkflowRun {
+  id String @id
+  workflowId String
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  versionId String
+  version WorkflowVersion @relation(fields: [versionId, workflowId], references: [id, workflowId], onDelete: Cascade)
+  requestedBy String
+  idempotencyKey String
+  requestHash String
+  payload String
+  status RunStatus @default(QUEUED)
+  input Json
+  output Json?
+  error String?
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  finishedAt DateTime?
+  nodes NodeRun[]
+  attempts HttpAttempt[]
+  webhookDelivery WebhookDelivery?
+  @@unique([workflowId, idempotencyKey])
+  @@index([status, createdAt])
+}
+model NodeRun {
+  id String @id @default(cuid())
+  runId String
+  run WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  nodeId String
+  type String
+  position Int
+  status NodeStatus
+  input Json
+  output Json?
+  error String?
+  startedAt DateTime?
+  finishedAt DateTime
+  @@unique([runId, nodeId])
+  @@index([runId, position])
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+model PlatformAdministrator {
+  userId String @id
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+model AutomationTemplate {
+  id String @id @default(cuid())
+  slug String @unique
+  draft Json
+  revision Int @default(1)
+  status TemplateStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions AutomationTemplateVersion[]
+  @@index([status])
+}
+model AutomationTemplateVersion {
+  id String @id @default(cuid())
+  templateId String
+  template AutomationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  number Int
+  content Json
+  publishedAt DateTime @default(now())
+  installations TemplateInstallation[]
+  @@unique([templateId, number])
+  @@unique([id, templateId])
+}
+model TemplateInstallation {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflowId String @unique
+  workflow Workflow @relation(fields: [workflowId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  templateId String
+  templateVersionId String
+  version AutomationTemplateVersion @relation(fields: [templateVersionId, templateId], references: [id, templateId], onDelete: Restrict)
+  requestedBy String
+  idempotencyKey String
+  nodeMap Json
+  createdAt DateTime @default(now())
+  @@unique([workspaceId, idempotencyKey])
+  @@unique([workflowId, workspaceId])
+  @@index([templateVersionId])
+  @@index([workspaceId, createdAt])
+}
+
+enum ProviderState {
+  AVAILABLE
+  COMING_SOON
+  TEST_ONLY
+  DISABLED
+}
+enum IntegrationStatus {
+  DISCONNECTED
+  PENDING
+  CONNECTED
+  EXPIRED
+  REVOKED
+  ERROR
+}
+enum IntegrationEventKind {
+  CREATED
+  LABEL_UPDATED
+  AUTHENTICATION_STARTED
+  AUTHENTICATION_SUCCEEDED
+  HEALTH_VERIFIED
+  REFRESHED
+  EXPIRED
+  REVOKED
+  DELETED
+  FAILED
+  KEY_ROTATED
+}
+model IntegrationProvider {
+  id String @id
+  name String
+  description String
+  authMethod String
+  requiredScopes String[]
+  capabilities String[]
+  configurationSchema Json
+  state ProviderState @default(COMING_SOON)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  connections WorkspaceIntegration[]
+}
+model WorkspaceIntegration {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  providerId String
+  provider IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  connectionKey String? @default("primary")
+  label String
+  status IntegrationStatus @default(DISCONNECTED)
+  revision Int @default(1)
+  scopes String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastVerifiedAt DateTime?
+  revokedAt DateTime?
+  deletedAt DateTime?
+  lastErrorCode String?
+  accountSubject String?
+  accountEmail String?
+  googleAttempts GoogleOAuthAttempt[]
+  authAttemptId String?
+  authInitiatedBy String?
+  authStateHash String?
+  authStateCiphertext String?
+  authExpiresAt DateTime?
+  credential IntegrationCredential?
+  events IntegrationAuditEvent[]
+  @@unique([workspaceId, providerId, connectionKey])
+  @@unique([id, workspaceId, providerId])
+  @@index([workspaceId, deletedAt])
+}
+model IntegrationCredential {
+  id String @id
+  integrationId String @unique
+  workspaceId String
+  providerId String
+  integration WorkspaceIntegration @relation(fields: [integrationId, workspaceId, providerId], references: [id, workspaceId, providerId], onDelete: Cascade)
+  ciphertext String
+  keyId String
+  generation Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  issuedAt DateTime
+  expiresAt DateTime
+  refreshedAt DateTime?
+  rotatedAt DateTime?
+  revokedAt DateTime?
+  destroyedAt DateTime?
+  @@unique([integrationId, workspaceId, providerId])
+}
+model IntegrationAuditEvent {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integrationId String
+  providerId String
+  integration WorkspaceIntegration @relation(fields: [integrationId, workspaceId, providerId], references: [id, workspaceId, providerId], onDelete: Cascade)
+  actorId String
+  kind IntegrationEventKind
+  status IntegrationStatus
+  revision Int
+  code String?
+  createdAt DateTime @default(now())
+  @@index([workspaceId, integrationId, createdAt])
+}
+
+model Webhook {
+  id String @id
+  workflowId String
+  workflow Workflow @relation(fields:[workflowId], references:[id], onDelete:Cascade)
+  versionId String
+  version WorkflowVersion @relation(fields:[versionId,workflowId],references:[id,workflowId],onDelete:Cascade)
+  createdBy String
+  enabled Boolean @default(true)
+  revokedAt DateTime?
+  revision Int @default(1)
+  ciphertext String
+  keyId String
+  createdAt DateTime @default(now())
+  deliveries WebhookDelivery[]
+  audits WebhookAudit[]
+  rates WebhookRate[]
+  @@index([workflowId])
+}
+model WebhookDelivery {
+  id String @id @default(cuid())
+  webhookId String
+  webhook Webhook @relation(fields:[webhookId], references:[id], onDelete:Cascade)
+  deliveryId String
+  runId String @unique
+  run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@unique([webhookId,deliveryId])
+}
+model WebhookAudit {
+  id String @id @default(cuid())
+  webhookId String
+  webhook Webhook @relation(fields:[webhookId],references:[id],onDelete:Cascade)
+  code String
+  createdAt DateTime @default(now())
+  @@index([webhookId,createdAt])
+}
+model WebhookRate {
+  webhookId String @id
+  webhook Webhook @relation(fields:[webhookId],references:[id],onDelete:Cascade)
+  bucket BigInt
+  count Int
+}
+model HttpAttempt {
+  id String @id
+  runId String
+  run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+  nodeId String
+  number Int
+  state String
+  statusCode Int?
+  error String?
+  createdAt DateTime @default(now())
+  finishedAt DateTime?
+  @@unique([runId,nodeId,number])
+}
+
+model GoogleOAuthAttempt {
+ id String @id
+ integrationId String
+ integration WorkspaceIntegration @relation(fields:[integrationId],references:[id],onDelete:Cascade)
+ stateHash String @unique
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ consumedAt DateTime?
+ @@index([integrationId])
+}
