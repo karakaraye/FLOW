@@ -1,3 +1,4 @@
+import { resourceLimit, consumeQuota } from "../billing/quotas";
 import {
   createHmac,
   randomBytes,
@@ -276,8 +277,14 @@ export async function workflowState(actor: Actor, id: string, body: unknown) {
   )
     throw new EngineError("INVALID_BODY", "Supply enabled and archived flags.");
   return db.$transaction(async (tx) => {
-    await owned(tx, actor, id, true);
+    const current = await owned(tx, actor, id, true);
     await tx.$executeRaw`SELECT id FROM "Workflow" WHERE id=${id} FOR UPDATE`;
+    if (
+      body.enabled &&
+      !body.archived &&
+      (!current.enabled || current.archivedAt)
+    )
+      await resourceLimit(tx, actor.workspaceId, "activeWorkflows");
     return tx.workflow.update({
       where: { id },
       data: {
@@ -427,7 +434,9 @@ export async function receiveWebhook(id: string, request: Request) {
       )
     )
       return fail("INVALID_VERSION", 409);
+    await resourceLimit(tx, hook.workflow.workspaceId, "activeWorkflows", 0);
     const runId = randomUUID();
+    await consumeQuota(tx, hook.workflow.workspaceId, "executions", runId);
     await tx.workflowRun.create({
       data: {
         id: runId,

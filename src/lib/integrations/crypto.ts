@@ -2,7 +2,12 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { IntegrationFailure, type Binding } from "./contracts";
 export type Context = Binding & {
   recordId: string;
-  purpose: "credential" | "authentication-state";
+  purpose:
+    | "credential"
+    | "authentication-state"
+    | "ai-result"
+    | "whatsapp-event"
+    | "billing-secret";
 };
 export type KeyRing = { active: string; keys: Map<string, Buffer> };
 function unavailable(): never {

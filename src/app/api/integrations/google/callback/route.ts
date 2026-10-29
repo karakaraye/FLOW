@@ -1,8 +1,9 @@
+import { observe } from "@/lib/operations/observe";
 import { auth } from "@/lib/auth";
 import { completeGoogle } from "@/lib/google/service";
 import { googleSettings } from "@/lib/google/provider";
 export const runtime = "nodejs";
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const headers = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",
@@ -51,4 +52,8 @@ export async function GET(request: Request) {
       },
     });
   }
+}
+
+export async function GET(request: Request) {
+  return observe(request, "google-callback", () => handleGET(request));
 }

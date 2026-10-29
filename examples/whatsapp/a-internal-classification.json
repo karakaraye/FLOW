@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "incoming",
+      "type": "whatsapp_message_received",
+      "config": {
+        "connectionId": "REPLACE_WITH_VERIFIED_CONNECTION_ID",
+        "phoneNumberId": "000000"
+      }
+    },
+    {
+      "id": "classify",
+      "type": "ai_classify",
+      "config": {
+        "modelId": "default",
+        "textPath": "text",
+        "categories": ["support", "review"],
+        "maxOutputTokens": 256
+      }
+    },
+    {
+      "id": "route",
+      "type": "condition",
+      "config": {
+        "path": "category",
+        "operator": "equals",
+        "value": "support"
+      }
+    },
+    {
+      "id": "support",
+      "type": "log_event",
+      "config": {
+        "message": "Support classification"
+      }
+    },
+    {
+      "id": "review",
+      "type": "log_event",
+      "config": {
+        "message": "Review classification"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "incoming",
+      "to": "classify"
+    },
+    {
+      "from": "classify",
+      "to": "route"
+    },
+    {
+      "from": "route",
+      "to": "support",
+      "branch": "true"
+    },
+    {
+      "from": "route",
+      "to": "review",
+      "branch": "false"
+    }
+  ]
+}

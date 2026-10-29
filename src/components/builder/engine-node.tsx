@@ -1,8 +1,18 @@
 "use client";
+import { aiConfig, isAIType } from "@/lib/ai/config";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { GitBranch, Play, Braces, FileText } from "lucide-react";
+import { GitBranch, Play, Braces, FileText, Sparkles } from "lucide-react";
 import { nodeTitles, purposes, type CanvasNode } from "@/lib/builder/document";
 const styles = {
+  whatsapp_message_received:
+    "border-emerald-500 bg-emerald-50 text-emerald-900",
+  whatsapp_send_message: "border-emerald-500 bg-emerald-50 text-emerald-900",
+  whatsapp_send_template: "border-emerald-500 bg-emerald-50 text-emerald-900",
+  ai_classify: "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-900",
+  ai_summarize: "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-900",
+  ai_extract: "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-900",
+  ai_sentiment: "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-900",
+  ai_generate_text: "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-900",
   google_sheets_read_rows: "border-green-500 bg-green-50 text-green-900",
   google_sheets_append_row: "border-green-500 bg-green-50 text-green-900",
   google_sheets_update_row: "border-green-500 bg-green-50 text-green-900",
@@ -15,6 +25,14 @@ const styles = {
   log_event: "border-violet-400 bg-violet-50 text-violet-900",
 };
 const icons = {
+  whatsapp_message_received: Play,
+  whatsapp_send_message: FileText,
+  whatsapp_send_template: FileText,
+  ai_classify: Sparkles,
+  ai_summarize: Sparkles,
+  ai_extract: Sparkles,
+  ai_sentiment: Sparkles,
+  ai_generate_text: Sparkles,
   google_sheets_read_rows: Braces,
   google_sheets_append_row: Braces,
   google_sheets_update_row: Braces,
@@ -43,6 +61,12 @@ function summary(node: CanvasNode["data"]) {
     return String(node.config.range ?? "Choose a bounded range");
   if (node.kind === "gmail_send_email")
     return "Send from the authorized Google account";
+  if (node.kind.startsWith("ai_"))
+    return `${node.config.modelId ?? "Select model"} · source: ${node.config.textPath ?? "Configure text"}`;
+  if (node.kind.startsWith("whatsapp_"))
+    return node.kind === "whatsapp_message_received"
+      ? "Signed Meta text event"
+      : "Policy-checked business message";
   return "Manual execution only";
 }
 export function EngineNode({
@@ -67,7 +91,11 @@ export function EngineNode({
       data-run-status={data.status ?? "NONE"}
       className={`h-[156px] w-[250px] rounded-xl border-2 bg-white shadow-sm ${selected ? "outline-3 outline-offset-4 outline-teal-700" : ""} ${statusClass} ${styles[data.kind] ?? "border-red-500"}`}
     >
-      {!["manual_trigger", "webhook_trigger"].includes(data.kind) && (
+      {![
+        "manual_trigger",
+        "webhook_trigger",
+        "whatsapp_message_received",
+      ].includes(data.kind) && (
         <Handle
           type="target"
           position={Position.Left}
@@ -96,6 +124,21 @@ export function EngineNode({
         >
           {summary(data)}
         </p>
+        {isAIType(data.kind) && !data.status && (
+          <p
+            className="mt-1 truncate text-[10px]"
+            title="Provider, model policy and budget are checked at execution"
+          >
+            {(() => {
+              try {
+                aiConfig(data.kind, data.config);
+                return "Configuration valid · runtime policy required";
+              } catch {
+                return "Needs configuration";
+              }
+            })()}
+          </p>
+        )}
         {data.status && (
           <p
             className="mt-2 text-[10px] font-bold"

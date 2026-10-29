@@ -1,9 +1,19 @@
+import { whatsappConfig } from "../whatsapp/config";
+import { aiConfig } from "../ai/config";
 import { googleConfig } from "../google/config";
 import { httpConfig } from "../http-actions/config";
 export type Json =
   null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Data = { [key: string]: Json };
 export type NodeType =
+  | "whatsapp_message_received"
+  | "whatsapp_send_message"
+  | "whatsapp_send_template"
+  | "ai_classify"
+  | "ai_summarize"
+  | "ai_extract"
+  | "ai_sentiment"
+  | "ai_generate_text"
   | "google_sheets_read_rows"
   | "google_sheets_append_row"
   | "google_sheets_update_row"
@@ -117,6 +127,18 @@ export function validateDefinition(value: unknown): Definition {
     if (!isObject(node.config)) invalid("Every node requires a config object.");
     const config = node.config;
     switch (node.type) {
+      case "whatsapp_message_received":
+      case "whatsapp_send_message":
+      case "whatsapp_send_template":
+        whatsappConfig(String(node.type), config as Data);
+        break;
+      case "ai_classify":
+      case "ai_summarize":
+      case "ai_extract":
+      case "ai_sentiment":
+      case "ai_generate_text":
+        aiConfig(String(node.type), config as Data);
+        break;
       case "google_sheets_read_rows":
       case "google_sheets_append_row":
       case "google_sheets_update_row":
@@ -171,7 +193,9 @@ export function validateDefinition(value: unknown): Definition {
   }
   const definition = value as unknown as Definition;
   const triggers = definition.nodes.filter((n) =>
-    ["manual_trigger", "webhook_trigger"].includes(n.type),
+    ["manual_trigger", "webhook_trigger", "whatsapp_message_received"].includes(
+      n.type,
+    ),
   );
   if (triggers.length !== 1)
     invalid("Exactly one manual or webhook trigger is required.");
@@ -195,7 +219,11 @@ export function validateDefinition(value: unknown): Definition {
   for (const node of definition.nodes) {
     const incoming = definition.edges.filter((e) => e.to === node.id);
     if (
-      ["manual_trigger", "webhook_trigger"].includes(node.type)
+      [
+        "manual_trigger",
+        "webhook_trigger",
+        "whatsapp_message_received",
+      ].includes(node.type)
         ? incoming.length !== 0
         : incoming.length === 0
     )

@@ -1,3 +1,25 @@
+# Current validation — Task 6A
+
+**Implementation and controlled Paystack-fixture verification: PASS.** The final full automated suite passed **218 tests** with zero failures/skips, preserving all previous 194. The final full browser suite passed **25 scenarios** with zero failures/skips/flaky results, preserving all previous 22. Real workers exercised billing events, metered executions, concurrency and prior provider regressions. TypeScript, lint (no warnings), formatting, build, Prisma validation, twenty-five migrations, no schema diff and client private-value scans passed.
+
+**Actual Paystack test-mode API calls remain UNVERIFIED**: no dedicated key was configured and no actual payment was attempted. Live keys are refused and production billing remains disabled. Provider costs stay separate from subscription fees. No deployment, publication or Task 6B occurred; changes remain local/uncommitted/unpushed.
+
+See [TASK6A_VALIDATION.md](TASK6A_VALIDATION.md) for architecture, exact plan/quota policy, payment verification, failure/recovery evidence, commands/results and production limitations.
+
+# Task 5E validation (preserved milestone evidence)
+
+**Implementation and mocked-provider verification: PASS.** The final `npm test` run passed **194 tests** with zero failures/skips, preserving all previous 175. The final `npm run test:e2e` run passed **22 scenarios** with zero failures/skips/flaky outcomes, preserving all previous 19. Real child workers processed signed simulated Meta events and text/template sends against controlled TLS fixtures. No real WhatsApp message was sent.
+
+TypeScript, lint (no warnings), formatting, Prisma validation, all eighteen additive migrations, no schema diff, production build, private-value client scan and diff checks passed. Live Meta/Google/OpenAI remain **UNVERIFIED**; production readiness is not claimed. Developer-only Meta onboarding defaults off; customer Embedded Signup remains unavailable. Nothing was committed, pushed, published or deployed.
+
+See [TASK5E_VALIDATION.md](TASK5E_VALIDATION.md) for exact commands, failures corrected during validation, model/version/account research, worker recovery evidence, API/UI details, retention and remaining limitations.
+
+# Task 5D validation (preserved milestone evidence)
+
+**PASS for implementation and mocked-provider verification; live OpenAI connectivity UNVERIFIED.** All 175 automated tests and 19 browser scenarios passed, preserving the previous 159/16. Real workers execute AI nodes via the official SDK against deterministic TLS fixtures; budgets, uncertain usage and duplicate protection are verified. No live AI test, deployment, autonomous tools, or subsequent milestone occurred. See [TASK5D_VALIDATION.md](TASK5D_VALIDATION.md) for exact results and limitations.
+
+---
+
 # Current validation — Task 5C
 
 **PASS for controlled-provider implementation verification; live Google connectivity UNVERIFIED.** The expanded suite has 159 passing automated tests and 16 passing browser scenarios, preserving all prior 144/14. Google OAuth, token lifecycle, Sheets nodes and Gmail worker execution are exercised against isolated TLS fixtures with the maintained Google authentication library. No real email, public deployment or publication occurred. See [TASK5C_VALIDATION.md](TASK5C_VALIDATION.md) for exact evidence, manual Google setup and limitations.
@@ -74,3 +96,11 @@ Test-created users, workspaces, runs, versions, and nodes were removed by their 
 Task 1's `npm ci`/postinstall check passed previously; Task 2 added no dependency packages. Published version protection is implemented in additive SQL migrations in addition to the Prisma schema.
 
 Unverified/out of scope: browser-driven interaction and visual/accessibility inspection, publication/restoration in a new cloud task, production deployment, long-running/external side effects, drag-and-drop editor, scheduling, webhooks, marketplace, third-party integrations, AI, and payments. Email verification/recovery remains the existing foundation limitation. No critical failure remains in the tested Task 2 workflow. No Task 3 work was started.
+
+## Task 6B — security and infrastructure hardening
+
+See [TASK6B_VALIDATION.md](TASK6B_VALIDATION.md) for the current task's exact executed checks, earlier failures and final results. [SECURITY_REVIEW.md](SECURITY_REVIEW.md) records prioritized findings; [OPERATIONS.md](OPERATIONS.md) records architecture and operational procedures. No deployment or live provider activation occurred. Production readiness remains INCOMPLETE pending the documented identity, provider and operational gates.
+
+Task 6B final automated regression: `npm test` — **235 passed, 0 failed, 0 skipped**, including all previous 218 counted tests and new security/recovery/shutdown coverage. PostgreSQL validation/status/diff, TypeScript, ESLint and production Next build passed. Final browser/image evidence is maintained in TASK6B_VALIDATION.md.
+
+Task 6B final browser regression: `npm run test:e2e` — **28/28 Chromium scenarios passed (3.1m), no retries**, preserving the previous 25 and adding three security scenarios. The final Docker image builds and passes isolated non-root web/worker runtime checks. The temporary local test adapter was disabled after verification; live providers remain unconfigured/unverified.

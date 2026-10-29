@@ -48,10 +48,17 @@ export const providerMetadata = [
     id: "whatsapp-business",
     name: "WhatsApp Business",
     description:
-      "Future Meta business messaging. No business account, token exchange, or messaging action is implemented.",
-    authMethod: "OAUTH2",
-    requiredScopes: ["whatsapp_business_messaging"],
-    capabilities: ["whatsapp.message (planned)"],
+      "Controlled developer-owned Meta WhatsApp Cloud API connection. Customer Embedded Signup is not available.",
+    authMethod: "CONTROLLED_META_TOKEN",
+    requiredScopes: [
+      "whatsapp_business_messaging",
+      "whatsapp_business_management",
+    ],
+    capabilities: [
+      "whatsapp.receive",
+      "whatsapp.reply",
+      "whatsapp.utility_template",
+    ],
     state: "COMING_SOON",
     configurationSchema: {
       type: "object",

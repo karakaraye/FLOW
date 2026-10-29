@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { createAuthClient } from "better-auth/react";
 import {
+  Sparkles,
   LayoutDashboard,
   Workflow,
   LayoutTemplate,
@@ -23,7 +24,9 @@ const links = [
   { href: "/workflows", title: "Workflows", icon: Workflow },
   { href: "/templates", title: "Templates", icon: LayoutTemplate },
   { href: "/integrations", title: "Integrations", icon: Plug },
+  { href: "/ai", title: "AI workspace", icon: Sparkles },
   { href: "/history", title: "Execution history", icon: History },
+  { href: "/billing", title: "Billing and usage", icon: Settings },
   { href: "/settings", title: "Settings", icon: Settings },
 ];
 export function AppSidebar({ workspaceName }: { workspaceName: string }) {

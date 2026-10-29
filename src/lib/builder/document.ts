@@ -70,6 +70,14 @@ export function historyReducer(state: History, action: HistoryAction): History {
   };
 }
 export const nodeTitles: Record<NodeType, string> = {
+  whatsapp_message_received: "WhatsApp Incoming Message",
+  whatsapp_send_message: "WhatsApp Text Reply",
+  whatsapp_send_template: "WhatsApp Template Message",
+  ai_classify: "AI Classify",
+  ai_summarize: "AI Summarize",
+  ai_extract: "AI Extract",
+  ai_sentiment: "AI Sentiment",
+  ai_generate_text: "AI Generate Text",
   google_sheets_read_rows: "Sheets Read Rows",
   google_sheets_append_row: "Sheets Append Row",
   google_sheets_update_row: "Sheets Update Row",
@@ -82,6 +90,14 @@ export const nodeTitles: Record<NodeType, string> = {
   log_event: "Log Event",
 };
 export const purposes: Record<NodeType, string> = {
+  whatsapp_message_received: "Start from a signed Meta text event",
+  whatsapp_send_message: "Reply inside the service window",
+  whatsapp_send_template: "Send a consented approved utility template",
+  ai_classify: "Choose one allowed category",
+  ai_summarize: "Summarize selected text",
+  ai_extract: "Extract schema-validated fields",
+  ai_sentiment: "Label sentiment without invented confidence",
+  ai_generate_text: "Generate content with strict boundaries",
   google_sheets_read_rows: "Read a bounded spreadsheet range",
   google_sheets_append_row: "Append one row to a spreadsheet",
   google_sheets_update_row: "Update one bounded spreadsheet row",

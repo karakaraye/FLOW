@@ -128,3 +128,27 @@ The historical four-node transaction design above remains the pure-run path. Tas
 ## Task 5C Google adapters
 
 Google Sheets read/append/update and Gmail send extend the same definition schema, shared traversal and external-attempt worker path. Scope-bound Google OAuth credentials use the existing vault; refresh coordination and revision fencing prevent revoked credentials from being restored. Reads may retry bounded transient failures; Gmail and Sheets writes never automatically retry. See [TASK5C_VALIDATION.md](TASK5C_VALIDATION.md). Controlled-provider execution is verified; live Google connectivity remains unverified.
+
+## Task 5D controlled AI nodes
+
+Five ai_* nodes use the same generator and external worker, with atomic per-workspace cost reservations, durable per-run/node usage, strict local/native schemas and no model tools. Worker loss preserves unknown usage without replaying paid calls. The AI playground submits an isolated AI-only job through existing admission; normal workflow mutation APIs cannot edit its internal workflow. Raw results are vault-encrypted for ten minutes and requester/edit-authorized, while routine audits remain shape-only. See [TASK5D_VALIDATION.md](TASK5D_VALIDATION.md). Mocked-provider execution is verified; live OpenAI is unverified.
+
+## Task 5E official WhatsApp nodes
+
+`whatsapp_message_received` is a signed-event-only root; normal manual admission rejects it. A separately activated immutable version subscription binds connection and phone to a workflow. Meta POSTs are raw-body App Secret authenticated, durably deduplicated in PostgreSQL and processed by the existing worker before normal workflow jobs. The trigger forwards bounded text data, not arbitrary payloads or downloaded media.
+
+`whatsapp_send_message` and `whatsapp_send_template` use the external worker, vault and deterministic run/node message intents. Text requires an unsuppressed open customer-service window. Utility templates require explicit consent and fresh provider approval/structure checks. All sends require operator-approved test recipients and atomic workspace/pair limits. Every send has a durable attempt; uncertain outcomes are never automatically resent. Unknown recipients remain blocked until explicit operator review; signed provider status correlation can reconcile remote delivery without changing failed workflow history into fabricated success.
+
+Provider message acceptance is separate from SENT/DELIVERED/READ/FAILED receipts. Delivery audit preserves timestamps and handles duplicates/out-of-order events. The v26.0 adapter explicitly identifies the Messaging account (legacy WABA ID) for template/billing attribution separately from the phone-number ID. Real Meta connectivity remains unverified. See [TASK5E_VALIDATION.md](TASK5E_VALIDATION.md) for security, retention, setup, recovery evidence and limitations.
+
+## Task 6A central entitlements and TEST billing
+
+`src/lib/billing/quotas.ts` centralizes PostgreSQL-serialized resource and usage admission. Run admission from manual actions, FlowPilot webhooks, AI playgrounds and Meta triggers consumes one logical execution only after admission. AI reserves plan USD-micro spend in addition to existing operator budgets; known settlement adjusts the same ledger key. Gmail and WhatsApp share an outgoing-message allowance keyed by run/node. Provider retries never consume another logical unit. UTC calendar-month usage is retained across plan changes; immutable payment verification remains separate from usage accounting.
+
+Workers acquire bounded ExecutionLease rows under the same workspace lock. An unreleased lease remains counted even if a run is cancelled while an external request is in flight. Normal completion releases it; crashes retain a conservative hold for up to 90 seconds while existing uncertain-side-effect recovery prevents a resend. One-shot external workers may briefly wait for a finishing slot, then leave the job QUEUED if capacity remains unavailable.
+
+The same worker drains signed TEST Paystack billing events and reconciles stale checkouts/subscriptions. Browser redirects never grant access. An initial transaction must be independently verified and a server-created subscription code bound to its checkout/workspace before paid entitlements activate. Renewals require verified invoice transaction facts; failed charges are not automatically recharged. Expiry falls back to FREE without deleting workflow/run history. See [TASK6A_VALIDATION.md](TASK6A_VALIDATION.md) for the state machine, exact verification results, provider-cost separation and production gaps. No live billing or Task 6B is implemented.
+
+## Task 6B reliability and observability
+
+Every worker claim, including database-only workflows, rechecks the current workflow state and requester membership before execution. Revoked edit access or a disabled workflow fails the run without successful node records. Worker heartbeat metadata is stored durably and exposed only as aggregate operator metrics; graceful termination stops claiming and allows the current bounded operation to finish. Queue durability and external side-effect uncertainty policies remain unchanged. See OPERATIONS.md for recovery, alerts and deployment boundaries, and TASK6B_VALIDATION.md for executed evidence.

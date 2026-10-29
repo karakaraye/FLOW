@@ -1,18 +1,17 @@
-import { auth } from "@/lib/auth";
+import { api } from "@/lib/engine/http";
 import { authorizedMembership } from "@/lib/workspaces";
-import { headers } from "next/headers";
+import { EngineError } from "@/lib/engine/definition";
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ workspaceId: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session)
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = await context.params;
-  const member = await authorizedMembership(session.user.id, workspaceId);
-  if (!member) return Response.json({ error: "Not found" }, { status: 404 });
-  return Response.json({
-    workspace: { id: member.workspace.id, name: member.workspace.name },
-    role: member.role,
+  return api(request, workspaceId, async (actor) => {
+    const member = await authorizedMembership(actor.userId, workspaceId);
+    if (!member) throw new EngineError("NOT_FOUND", "Not found.", 404);
+    return {
+      workspace: { id: member.workspace.id, name: member.workspace.name },
+      role: member.role,
+    };
   });
 }

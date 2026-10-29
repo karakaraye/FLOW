@@ -1,0 +1,10 @@
+-- AddForeignKey
+ALTER TABLE "WhatsAppMessage" ADD CONSTRAINT "WhatsAppMessage_runId_fkey" FOREIGN KEY ("runId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WhatsAppEventRun" ADD CONSTRAINT "WhatsAppEventRun_runId_fkey" FOREIGN KEY ("runId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+-- Extend the existing closed audit-code allowlist with three fixed consent decisions.
+ALTER TABLE "IntegrationAuditEvent" DROP CONSTRAINT "IntegrationAuditEvent_safe_code";
+ALTER TABLE "IntegrationAuditEvent" ADD CONSTRAINT "IntegrationAuditEvent_safe_code" CHECK (code IS NULL OR code IN ('AUTHENTICATION_FAILED','TOKEN_EXPIRED','PROVIDER_OPERATION_FAILED','CREDENTIAL_CONFIGURATION_UNAVAILABLE','CREDENTIAL_UNAVAILABLE','AUTH_ATTEMPT_EXPIRED','AUTH_BINDING_INVALID','LOCAL_ACCESS_REMOVED','WHATSAPP_CONSENT_GRANT','WHATSAPP_CONSENT_SUPPRESS','WHATSAPP_CONSENT_WITHDRAW'));

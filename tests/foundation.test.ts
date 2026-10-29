@@ -1,6 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomInt } from "node:crypto";
 import { after, test } from "node:test";
 import { db } from "../src/lib/db";
 import {
@@ -14,6 +14,9 @@ const baseURL = process.env.TEST_BASE_URL ?? "http://localhost:3000";
 const userIds: string[] = [];
 const workspaceIds: string[] = [];
 const run = randomUUID();
+// Isolate this local test client from browser-suite auth rate buckets.
+// Production ignores this untrusted header and requires the controlled edge.
+const testIp = `192.0.2.${randomInt(1, 255)}`;
 const password = `Foundation-${randomUUID()}!`;
 function request(path: string, options: RequestInit = {}) {
   return fetch(new URL(path, baseURL), {
@@ -21,6 +24,7 @@ function request(path: string, options: RequestInit = {}) {
     redirect: "manual",
     headers: {
       Origin: baseURL,
+      "X-Forwarded-For": testIp,
       "Content-Type": "application/json",
       ...options.headers,
     },

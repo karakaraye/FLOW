@@ -1,0 +1,62 @@
+[
+  {
+    "code": "FREE",
+    "name": "Free",
+    "monthly": 0,
+    "annually": null,
+    "currency": "NGN",
+    "limits": {
+      "activeWorkflows": 100,
+      "executions": 1000,
+      "aiMicros": 5000000,
+      "integrations": 100,
+      "messages": 100,
+      "concurrency": 2
+    }
+  },
+  {
+    "code": "STARTER",
+    "name": "Starter",
+    "monthly": 500000,
+    "annually": null,
+    "currency": "NGN",
+    "limits": {
+      "activeWorkflows": 200,
+      "executions": 10000,
+      "aiMicros": 20000000,
+      "integrations": 100,
+      "messages": 1000,
+      "concurrency": 4
+    }
+  },
+  {
+    "code": "BUSINESS",
+    "name": "Business",
+    "monthly": 1500000,
+    "annually": null,
+    "currency": "NGN",
+    "limits": {
+      "activeWorkflows": 500,
+      "executions": 100000,
+      "aiMicros": 100000000,
+      "integrations": 100,
+      "messages": 10000,
+      "concurrency": 8
+    }
+  },
+  {
+    "code": "PRO",
+    "name": "Pro",
+    "monthly": 3500000,
+    "annually": null,
+    "currency": "NGN",
+    "limits": {
+      "activeWorkflows": 1000,
+      "executions": 500000,
+      "aiMicros": 250000000,
+      "integrations": 100,
+      "messages": 100000,
+      "concurrency": 16
+    }
+  }
+]

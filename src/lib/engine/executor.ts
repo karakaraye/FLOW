@@ -1,3 +1,5 @@
+import { isWhatsAppType } from "../whatsapp/config";
+import { isAIType } from "../ai/config";
 import { isGoogleType } from "../google/config";
 import {
   audit,
@@ -28,6 +30,14 @@ const externalOnly: Executor = () => {
   );
 };
 export const executors: Record<WorkflowNode["type"], Executor> = {
+  whatsapp_message_received: (input) => ({ output: input }),
+  whatsapp_send_message: externalOnly,
+  whatsapp_send_template: externalOnly,
+  ai_classify: externalOnly,
+  ai_summarize: externalOnly,
+  ai_extract: externalOnly,
+  ai_sentiment: externalOnly,
+  ai_generate_text: externalOnly,
   google_sheets_read_rows: externalOnly,
   google_sheets_append_row: externalOnly,
   google_sheets_update_row: externalOnly,
@@ -104,7 +114,11 @@ function* execution(
       .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
     if (
       failure ||
-      (!["manual_trigger", "webhook_trigger"].includes(node.type) &&
+      (![
+        "manual_trigger",
+        "webhook_trigger",
+        "whatsapp_message_received",
+      ].includes(node.type) &&
         incoming.length === 0)
     ) {
       nodes.push({
@@ -118,7 +132,11 @@ function* execution(
       });
       continue;
     }
-    const data = ["manual_trigger", "webhook_trigger"].includes(node.type)
+    const data = [
+      "manual_trigger",
+      "webhook_trigger",
+      "whatsapp_message_received",
+    ].includes(node.type)
       ? input
       : incoming.length === 1
         ? results.get(incoming[0].from)!.output
@@ -133,7 +151,10 @@ function* execution(
           "Execution time limit exceeded.",
         );
       const result: Result =
-        node.type === "http_request" || isGoogleType(node.type)
+        node.type === "http_request" ||
+        isGoogleType(node.type) ||
+        isAIType(node.type) ||
+        (isWhatsAppType(node.type) && node.type !== "whatsapp_message_received")
           ? yield { node, input: data }
           : executors[node.type](data, node.config);
       // Shallow merges cannot grow without bound across graph joins.

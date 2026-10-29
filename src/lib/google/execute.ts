@@ -1,3 +1,4 @@
+import { consumeQuota } from "../billing/quotas";
 import nodemailer from "nodemailer";
 import { db } from "../db";
 import { attemptId } from "../http-actions/execute";
@@ -131,7 +132,12 @@ export async function executeGoogle(
     run.workflow.archivedAt
   )
     throw new EngineError("RUN_CANCELLED", "Further actions are disabled.");
-  if (provider === "gmail") approvedRecipients(c.to as string[]);
+  if (provider === "gmail") {
+    approvedRecipients(c.to as string[]);
+    await db.$transaction((tx) =>
+      consumeQuota(tx, actor.workspaceId, "messages", `${runId}:${node.id}`),
+    );
+  }
   // Limits are workspace/provider scoped and consumed even when an outcome is uncertain.
   await rate(
     `flowpilot:google:${actor.workspaceId}:${provider}`,

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "hook",
+      "type": "webhook_trigger",
+      "config": {}
+    },
+    {
+      "id": "template",
+      "type": "whatsapp_send_template",
+      "config": {
+        "connectionId": "REPLACE_WITH_VERIFIED_CONNECTION_ID",
+        "toPath": "recipient",
+        "templateId": "000000",
+        "language": "en_US",
+        "parameters": [""],
+        "parameterPaths": ["orderReference"]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "hook",
+      "to": "template"
+    }
+  ]
+}

@@ -1,4 +1,8 @@
 "use client";
+import { WhatsAppFields } from "./whatsapp-fields";
+import { isWhatsAppType } from "@/lib/whatsapp/config";
+import { AIFields } from "./ai-fields";
+import { isAIType } from "@/lib/ai/config";
 import { GoogleFields } from "./google-fields";
 import { isGoogleType } from "@/lib/google/config";
 import { HttpFields } from "./http-fields";
@@ -44,12 +48,18 @@ export function NodePanel({
     event.preventDefault();
     try {
       if (
-        (node.type === "http_request" || isGoogleType(node.type)) &&
+        (node.type === "http_request" ||
+          isGoogleType(node.type) ||
+          isAIType(node.type) ||
+          isWhatsAppType(node.type)) &&
         !httpValid
       )
         throw new Error("Enter valid configuration JSON before applying.");
       const config: Data =
-        node.type === "http_request" || isGoogleType(node.type)
+        node.type === "http_request" ||
+        isGoogleType(node.type) ||
+        isAIType(node.type) ||
+        isWhatsAppType(node.type)
           ? http
           : node.type === "set_data"
             ? { values: JSON.parse(values) as Json }
@@ -105,6 +115,32 @@ export function NodePanel({
           }}
         />
       </div>
+      {isWhatsAppType(node.type) && (
+        <WhatsAppFields
+          workspaceId={workspaceId}
+          type={node.type}
+          value={http}
+          disabled={readOnly}
+          onValidityChange={setHttpValid}
+          onChange={(v) => {
+            setHttp(v);
+            dirty();
+          }}
+        />
+      )}
+      {isAIType(node.type) && (
+        <AIFields
+          workspaceId={workspaceId}
+          type={node.type}
+          value={http}
+          disabled={readOnly}
+          onValidityChange={setHttpValid}
+          onChange={(v) => {
+            setHttp(v);
+            dirty();
+          }}
+        />
+      )}
       {isGoogleType(node.type) && (
         <GoogleFields
           type={node.type}

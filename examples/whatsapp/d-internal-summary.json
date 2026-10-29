@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "incoming",
+      "type": "whatsapp_message_received",
+      "config": {
+        "connectionId": "REPLACE_WITH_VERIFIED_CONNECTION_ID",
+        "phoneNumberId": "000000"
+      }
+    },
+    {
+      "id": "summarize",
+      "type": "ai_summarize",
+      "config": {
+        "modelId": "default",
+        "textPath": "text",
+        "maxOutputTokens": 256,
+        "length": "short"
+      }
+    },
+    {
+      "id": "internal",
+      "type": "log_event",
+      "config": {
+        "message": "Internal summary event; content not logged"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "incoming",
+      "to": "summarize"
+    },
+    {
+      "from": "summarize",
+      "to": "internal"
+    }
+  ]
+}

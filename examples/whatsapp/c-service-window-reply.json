@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "incoming",
+      "type": "whatsapp_message_received",
+      "config": {
+        "connectionId": "REPLACE_WITH_VERIFIED_CONNECTION_ID",
+        "phoneNumberId": "000000"
+      }
+    },
+    {
+      "id": "prepare",
+      "type": "set_data",
+      "config": {
+        "values": {
+          "reply": "Thanks for your message. Our team will review it."
+        }
+      }
+    },
+    {
+      "id": "reply",
+      "type": "whatsapp_send_message",
+      "config": {
+        "connectionId": "REPLACE_WITH_VERIFIED_CONNECTION_ID",
+        "toPath": "from",
+        "bodyPath": "reply"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "incoming",
+      "to": "prepare"
+    },
+    {
+      "from": "prepare",
+      "to": "reply"
+    }
+  ]
+}

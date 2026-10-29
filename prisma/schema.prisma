@@ -85,6 +85,16 @@ model Workspace {
   templateInstallations TemplateInstallation[]
   integrations WorkspaceIntegration[]
   integrationEvents IntegrationAuditEvent[]
+  whatsappConnections WhatsAppConnection[]
+  billingPayments BillingPayment[]
+  billingCheckouts BillingCheckout[]
+  billingEvents BillingEvent[]
+  billingAudits BillingAudit[]
+  executionLeases ExecutionLease[]
+  quotaEntries QuotaEntry[]
+  aiBudget AIWorkspaceBudget?
+  aiUsage AIUsage[]
+  aiEvents AIBudgetEvent[]
 }
 model WorkspaceMember {
   id String @id @default(cuid())
@@ -112,11 +122,26 @@ model Subscription {
   planId String
   status SubscriptionStatus @default(TRIALING)
   currentPeriodEnd DateTime?
+  provider String?
+  mode String?
+  providerCode String? @unique
+  customerCode String?
+  providerPlanCode String?
+  interval String @default("monthly")
+  amountMinor Int @default(0)
+  currency String @default("NGN")
+  paidVerifiedAt DateTime?
+  lastPaidAt DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  credentialCiphertext String?
+  lastReconciledAt DateTime?
+  revision Int @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
   @@index([planId])
+  @@unique([providerCode,workspaceId],map:"billing_subscription_workspace_code")
 }
 
 enum RunStatus {
@@ -143,6 +168,8 @@ model Workflow {
   versions WorkflowVersion[]
   runs WorkflowRun[]
   installation TemplateInstallation?
+  internalKind String?
+  @@unique([workspaceId, internalKind])
   enabled Boolean @default(true)
   archivedAt DateTime?
   webhooks Webhook[]
@@ -181,6 +208,10 @@ model WorkflowRun {
   finishedAt DateTime?
   nodes NodeRun[]
   attempts HttpAttempt[]
+  aiUsage AIUsage[]
+  whatsappMessages WhatsAppMessage[]
+  whatsappDeliveries WhatsAppEventRun[]
+  executionLease ExecutionLease?
   webhookDelivery WebhookDelivery?
   @@unique([workflowId, idempotencyKey])
   @@index([status, createdAt])
@@ -318,6 +349,7 @@ model WorkspaceIntegration {
   authStateHash String?
   authStateCiphertext String?
   authExpiresAt DateTime?
+  whatsapp WhatsAppConnection?
   credential IntegrationCredential?
   events IntegrationAuditEvent[]
   @@unique([workspaceId, providerId, connectionKey])
@@ -424,4 +456,341 @@ model GoogleOAuthAttempt {
  expiresAt DateTime
  consumedAt DateTime?
  @@index([integrationId])
+}
+
+enum AIRequestStatus {
+ RESERVED
+ RUNNING
+ SUCCEEDED
+ FAILED
+ REFUSED
+ UNKNOWN
+ RECONCILED
+}
+model AIWorkspaceBudget {
+ workspaceId String @id
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ dailyLimitMicros BigInt @default(0)
+ monthlyLimitMicros BigInt @default(0)
+ revision Int @default(1)
+ updatedAt DateTime @updatedAt
+}
+model AIUsage {
+ id String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ runId String
+ run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+ nodeId String
+ requestedBy String
+ source String
+ provider String
+ mode String
+ modelId String
+ model String
+ status AIRequestStatus @default(RESERVED)
+ revision Int @default(1)
+ inputTokenBound Int
+ maxOutputTokens Int
+ inputTokens Int?
+ outputTokens Int?
+ totalTokens Int?
+ usageDetails Json?
+ reservedMicros BigInt
+ accountedMicros BigInt
+ estimatedCostMicros BigInt?
+ accountingSource String @default("RESERVATION")
+ pricing Json
+ day String
+ month String
+ requestId String?
+ responseId String?
+ error String?
+ resultCiphertext String?
+ resultExpiresAt DateTime?
+ reconciledBy String?
+ reconciliation Json?
+ reconciledAt DateTime?
+ createdAt DateTime @default(now())
+ finishedAt DateTime?
+ @@unique([runId,nodeId])
+ @@index([workspaceId,day])
+ @@index([workspaceId,month])
+}
+model AIBudgetEvent {
+ id String @id @default(cuid())
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ actorId String
+ usageId String?
+ kind String
+ data Json
+ createdAt DateTime @default(now())
+ @@index([workspaceId,createdAt])
+}
+
+model WhatsAppConnection {
+ id String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ integrationId String @unique
+ providerId String @default("whatsapp-business")
+ integration WorkspaceIntegration @relation(fields:[integrationId,workspaceId,providerId],references:[id,workspaceId,providerId],onDelete:Cascade)
+ @@unique([integrationId,workspaceId,providerId])
+ messagingAccountId String
+ legacyWabaId String
+ businessName String
+ graphVersion String
+ mode String @default("DEVELOPER_TEST")
+ dailyLimit Int @default(0)
+ createdBy String
+ createdAt DateTime @default(now())
+ phones WhatsAppPhone[]
+ subscriptions WhatsAppSubscription[]
+ @@unique([id,workspaceId])
+}
+model WhatsAppPhone {
+ id String @id
+ workspaceId String
+ connectionId String
+ connection WhatsAppConnection @relation(fields:[connectionId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ providerPhoneId String @unique
+ displayLast4 String
+ verifiedName String
+ enabled Boolean @default(true)
+ contacts WhatsAppContact[]
+ messages WhatsAppMessage[]
+ events WhatsAppEvent[]
+ subscriptions WhatsAppSubscription[]
+ @@unique([id,workspaceId])
+}
+model WhatsAppContact {
+ id String @id
+ workspaceId String
+ phoneId String
+ phone WhatsAppPhone @relation(fields:[phoneId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ recipientHash String
+ last4 String
+ lastInboundAt DateTime?
+ consentAt DateTime?
+ consentSource String?
+ optedOutAt DateTime?
+ updatedAt DateTime @updatedAt
+ @@unique([phoneId,recipientHash])
+ @@unique([id,workspaceId])
+}
+model WhatsAppMessage {
+ id String @id
+ workspaceId String
+ phoneId String
+ phone WhatsAppPhone @relation(fields:[phoneId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ runId String
+ run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+ nodeId String
+ recipientHash String
+ recipientLast4 String
+ kind String
+ templateId String?
+ providerMessageId String? @unique
+ state String @default("RESERVED")
+ error String?
+ createdAt DateTime @default(now())
+ acceptedAt DateTime?
+ reviewedAt DateTime?
+ reviewedBy String?
+ statusAt DateTime?
+ attempts WhatsAppAttempt[]
+ statuses WhatsAppStatus[]
+ @@unique([runId,nodeId])
+ @@unique([id,workspaceId])
+ @@index([workspaceId,createdAt])
+}
+model WhatsAppAttempt {
+ id String @id
+ workspaceId String
+ messageId String
+ message WhatsAppMessage @relation(fields:[messageId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ number Int
+ state String
+ statusCode Int?
+ error String?
+ createdAt DateTime @default(now())
+ finishedAt DateTime?
+ @@unique([messageId,number])
+}
+model WhatsAppEvent {
+ id String @id
+ workspaceId String
+ phoneId String
+ phone WhatsAppPhone @relation(fields:[phoneId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ dedupKey String
+ kind String
+ providerId String
+ providerAt DateTime
+ ciphertext String?
+ expiresAt DateTime
+ state String @default("PENDING")
+ error String?
+ createdAt DateTime @default(now())
+ processedAt DateTime?
+ deliveries WhatsAppEventRun[]
+ @@unique([phoneId,dedupKey])
+ @@unique([id,workspaceId])
+ @@index([state,createdAt])
+}
+model WhatsAppStatus {
+ id String @id
+ workspaceId String
+ messageId String
+ message WhatsAppMessage @relation(fields:[messageId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ eventId String @unique
+ state String
+ providerAt DateTime
+ errorCode String?
+ createdAt DateTime @default(now())
+}
+model WhatsAppSubscription {
+ id String @id
+ workspaceId String
+ connectionId String
+ connection WhatsAppConnection @relation(fields:[connectionId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ phoneId String
+ phone WhatsAppPhone @relation(fields:[phoneId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ workflowId String
+ versionId String
+ createdBy String
+ enabled Boolean @default(true)
+ createdAt DateTime @default(now())
+ @@unique([phoneId,workflowId])
+}
+model WhatsAppEventRun {
+ id String @id
+ workspaceId String
+ eventId String
+ event WhatsAppEvent @relation(fields:[eventId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ workflowId String
+ runId String @unique
+ run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+ @@unique([eventId,workflowId])
+}
+
+model BillingCheckout {
+ payments BillingPayment[]
+ @@unique([id,workspaceId])
+ @@unique([subscriptionCode,workspaceId],map:"billing_checkout_workspace_code")
+ id String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ requestedBy String
+ emailHash String
+ idempotencyKey String
+ requestHash String
+ reference String @unique
+ tier String
+ interval String
+ amountMinor Int
+ currency String @default("NGN")
+ providerPlanCode String
+ providerPlanId Int
+ status String @default("INITIALIZING")
+ subscriptionAttemptedAt DateTime?
+ subscriptionCode String? @unique
+ providerTransactionId String? @unique
+ customerCode String?
+ customerId Int?
+ paidAt DateTime?
+ urlCiphertext String?
+ error String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ lastReconciledAt DateTime?
+ @@unique([workspaceId,idempotencyKey])
+ @@index([workspaceId,createdAt])
+}
+model BillingEvent {
+ id String @id
+ digest String @unique
+ workspaceId String?
+ workspace Workspace? @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ kind String
+ attempts Int @default(0)
+ nextAttemptAt DateTime @default(now())
+ reference String?
+ subscriptionCode String?
+ status String @default("PENDING")
+ error String?
+ createdAt DateTime @default(now())
+ processedAt DateTime?
+ @@index([status,createdAt])
+}
+model BillingAudit {
+ id String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ actorId String
+ code String
+ source String
+ reference String?
+ fromStatus String?
+ toStatus String?
+ createdAt DateTime @default(now())
+ @@index([workspaceId,createdAt])
+}
+model BillingPayment {
+ reference String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ providerTransactionId String @unique
+ subscriptionCode String?
+ checkoutId String
+ checkout BillingCheckout @relation(fields:[checkoutId,workspaceId],references:[id,workspaceId],onDelete:Cascade)
+ amountMinor Int
+ currency String
+ paidAt DateTime
+ periodEnd DateTime
+ source String
+ createdAt DateTime @default(now())
+ @@index([workspaceId,paidAt])
+}
+model QuotaEntry {
+ id String @id
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ period String
+ metric String
+ key String
+ amount BigInt
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([workspaceId,metric,key])
+ @@index([workspaceId,period,metric])
+}
+
+model ExecutionLease {
+ releasedAt DateTime?
+ expiresAt DateTime @default(dbgenerated("(now() + '00:01:30'::interval)"))
+ runId String @id
+ run WorkflowRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+ workspaceId String
+ workspace Workspace @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+ createdAt DateTime @default(now())
+ @@index([workspaceId])
+}
+
+model WorkerHeartbeat {
+ id String @id
+ status String
+ startedAt DateTime @default(now())
+ lastSeenAt DateTime @default(now())
+ lastRunId String?
+ errorCode String?
+ @@index([lastSeenAt])
+}
+model OperationalMetric {
+ bucket DateTime
+ route String
+ status Int
+ count Int @default(1)
+ @@id([bucket,route,status])
+ @@index([bucket])
 }

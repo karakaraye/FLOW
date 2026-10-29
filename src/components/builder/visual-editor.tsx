@@ -1,4 +1,5 @@
 "use client";
+import { initialWhatsAppConfig } from "./whatsapp-fields";
 import {
   useCallback,
   useEffect,
@@ -33,6 +34,7 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { nodeTypes } from "./engine-node";
+import { initialAIConfig } from "./ai-fields";
 import { NodePanel } from "./node-panel";
 import {
   connect,
@@ -68,6 +70,14 @@ export type EditorProps = {
   workflow?: SavedWorkflow;
 };
 const available: NodeType[] = [
+  "whatsapp_message_received",
+  "whatsapp_send_message",
+  "whatsapp_send_template",
+  "ai_classify",
+  "ai_summarize",
+  "ai_extract",
+  "ai_sentiment",
+  "ai_generate_text",
   "google_sheets_read_rows",
   "google_sheets_append_row",
   "google_sheets_update_row",
@@ -197,9 +207,19 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
     }
     if (panelDirty && !window.confirm("Discard unapplied node configuration?"))
       return;
-    if (kind === "webhook_trigger") {
-      const root = doc.definition.nodes.find(
-        (n) => n.type === "manual_trigger" || n.type === "webhook_trigger",
+    if (
+      [
+        "manual_trigger",
+        "webhook_trigger",
+        "whatsapp_message_received",
+      ].includes(kind)
+    ) {
+      const root = doc.definition.nodes.find((n) =>
+        [
+          "manual_trigger",
+          "webhook_trigger",
+          "whatsapp_message_received",
+        ].includes(n.type),
       );
       if (root) {
         apply({
@@ -208,7 +228,14 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
             ...doc.definition,
             nodes: doc.definition.nodes.map((n) =>
               n.id === root.id
-                ? { ...n, type: "webhook_trigger", config: {} }
+                ? {
+                    ...n,
+                    type: kind,
+                    config:
+                      kind === "whatsapp_message_received"
+                        ? initialWhatsAppConfig(kind)
+                        : {},
+                  }
                 : n,
             ),
           },
@@ -218,39 +245,42 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
       }
     }
     const id = `node_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
-    const config: Data =
-      kind === "gmail_send_email"
-        ? {
-            connectionId: "",
-            to: ["recipient@example.test"],
-            subject: "Workflow update",
-            body: "Your update",
-            mappings: {},
-          }
-        : kind.startsWith("google_sheets_")
+    const config: Data = kind.startsWith("whatsapp_")
+      ? initialWhatsAppConfig(kind)
+      : kind.startsWith("ai_")
+        ? initialAIConfig(kind)
+        : kind === "gmail_send_email"
           ? {
               connectionId: "",
-              spreadsheetId: "",
-              range: "Sheet1!A1:A1",
-              ...(kind === "google_sheets_read_rows"
-                ? {}
-                : { values: [""], valuePaths: [null] }),
+              to: ["recipient@example.test"],
+              subject: "Workflow update",
+              body: "Your update",
+              mappings: {},
             }
-          : kind === "http_request"
+          : kind.startsWith("google_sheets_")
             ? {
-                method: "GET",
-                url: "https://api.your-company.com/status",
-                headers: {},
-                timeoutMs: 5000,
-                maxAttempts: 1,
+                connectionId: "",
+                spreadsheetId: "",
+                range: "Sheet1!A1:A1",
+                ...(kind === "google_sheets_read_rows"
+                  ? {}
+                  : { values: [""], valuePaths: [null] }),
               }
-            : kind === "set_data"
-              ? { values: {} }
-              : kind === "condition"
-                ? { path: "score", operator: "gt", value: 10 }
-                : kind === "log_event"
-                  ? { message: "Event recorded" }
-                  : {};
+            : kind === "http_request"
+              ? {
+                  method: "GET",
+                  url: "https://api.your-company.com/status",
+                  headers: {},
+                  timeoutMs: 5000,
+                  maxAttempts: 1,
+                }
+              : kind === "set_data"
+                ? { values: {} }
+                : kind === "condition"
+                  ? { path: "score", operator: "gt", value: 10 }
+                  : kind === "log_event"
+                    ? { message: "Event recorded" }
+                    : {};
     let point = position ?? {
       x: (doc.definition.nodes.length % 3) * 310,
       y: Math.floor(doc.definition.nodes.length / 3) * 220,
@@ -348,9 +378,11 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
     // Reuse the authoritative validator's node/config checks with a tiny valid
     // graph; structural errors elsewhere must not prevent configuring this node.
     const node = { ...selected, config };
-    const probe: Definition = ["manual_trigger", "webhook_trigger"].includes(
-      node.type,
-    )
+    const probe: Definition = [
+      "manual_trigger",
+      "webhook_trigger",
+      "whatsapp_message_received",
+    ].includes(node.type)
       ? { schemaVersion: 1, nodes: [node], edges: [] }
       : node.type === "condition"
         ? {
@@ -639,7 +671,7 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
           <p className="mb-3 text-[10px] leading-5 text-stone-500">
             Drag onto the canvas, or select a button to add.
           </p>
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
+          <div className="grid max-h-[520px] grid-cols-2 gap-2 overflow-y-auto xl:grid-cols-1">
             {available.map((kind) => (
               <button
                 type="button"
@@ -857,7 +889,11 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
                   {doc.definition.nodes
                     .filter(
                       (n) =>
-                        !["manual_trigger", "webhook_trigger"].includes(n.type),
+                        ![
+                          "manual_trigger",
+                          "webhook_trigger",
+                          "whatsapp_message_received",
+                        ].includes(n.type),
                     )
                     .map((n) => (
                       <option key={n.id} value={n.id}>

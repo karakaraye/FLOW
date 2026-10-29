@@ -1,3 +1,4 @@
+import { resourceLimit, consumeQuota } from "../billing/quotas";
 import { validateEditor } from "../builder/metadata";
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, WorkspaceRole } from "@prisma/client";
@@ -61,19 +62,23 @@ async function lockedWorkflow(
   tx: Prisma.TransactionClient,
   actor: Actor,
   id: string,
+  internal = false,
 ) {
   const rows = await tx.$queryRaw<
     { id: string }[]
   >`SELECT id FROM "Workflow" WHERE id=${id} AND "workspaceId"=${actor.workspaceId} FOR UPDATE`;
   if (!rows.length)
     throw new EngineError("NOT_FOUND", "Workflow not found.", 404);
-  return tx.workflow.findUniqueOrThrow({ where: { id } });
+  const workflow = await tx.workflow.findUniqueOrThrow({ where: { id } });
+  if (workflow.internalKind && !internal)
+    throw new EngineError("NOT_FOUND", "Workflow not found.", 404);
+  return workflow;
 }
 export async function listWorkflows(actor: Actor) {
   return db.$transaction(async (tx) => {
     await authorize(tx, actor);
     return tx.workflow.findMany({
-      where: { workspaceId: actor.workspaceId },
+      where: { workspaceId: actor.workspaceId, internalKind: null },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       take: 100,
       include: { versions: { orderBy: { number: "desc" }, take: 1 } },
@@ -84,7 +89,7 @@ export async function getWorkflow(actor: Actor, id: string) {
   return db.$transaction(async (tx) => {
     await authorize(tx, actor);
     const workflow = await tx.workflow.findFirst({
-      where: { id, workspaceId: actor.workspaceId },
+      where: { id, workspaceId: actor.workspaceId, internalKind: null },
       include: {
         versions: { orderBy: { number: "desc" }, take: 25 },
         installation: {
@@ -121,13 +126,14 @@ export async function createWorkflow(actor: Actor, body: unknown) {
     if (
       (await tx.workflow.count({
         where: { workspaceId: actor.workspaceId },
-      })) >= 100
+      })) >= 2000
     )
       throw new EngineError(
         "WORKFLOW_LIMIT",
         "Workspace workflow limit reached.",
         429,
       );
+    await resourceLimit(tx, actor.workspaceId, "activeWorkflows");
     return tx.workflow.create({
       data: {
         workspaceId: actor.workspaceId,
@@ -222,6 +228,7 @@ export async function enqueue(
   id: string,
   body: unknown,
   idempotencyKey: string | null,
+  options: { tx?: Prisma.TransactionClient; internal?: boolean } = {},
 ) {
   if (!idempotencyKey || !/^[a-zA-Z0-9_-]{8,100}$/.test(idempotencyKey))
     throw new EngineError(
@@ -239,10 +246,10 @@ export async function enqueue(
   const hash = createHash("sha256")
     .update(canonical({ versionId: body.versionId, input }))
     .digest("hex");
-  return db.$transaction(async (tx) => {
+  const admit = async (tx: Prisma.TransactionClient) => {
     await authorize(tx, actor, EDIT);
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actor.workspaceId}))`;
-    const workflow = await lockedWorkflow(tx, actor, id);
+    const workflow = await lockedWorkflow(tx, actor, id, options.internal);
     if (!workflow.enabled || workflow.archivedAt)
       throw new EngineError(
         "WORKFLOW_DISABLED",
@@ -267,8 +274,8 @@ export async function enqueue(
     if (!version)
       throw new EngineError("NOT_FOUND", "Published version not found.", 404);
     if (
-      validateDefinition(version.definition).nodes.some(
-        (n) => n.type === "webhook_trigger",
+      validateDefinition(version.definition).nodes.some((n) =>
+        ["webhook_trigger", "whatsapp_message_received"].includes(n.type),
       )
     )
       throw new EngineError(
@@ -289,7 +296,9 @@ export async function enqueue(
         "Workspace pending-run limit reached.",
         429,
       );
+    await resourceLimit(tx, actor.workspaceId, "activeWorkflows", 0);
     const runId = randomUUID();
+    await consumeQuota(tx, actor.workspaceId, "executions", runId);
     await tx.workflowRun.create({
       data: {
         id: runId,
@@ -303,7 +312,8 @@ export async function enqueue(
       },
     });
     return { id: runId, replayed: false };
-  });
+  };
+  return options.tx ? admit(options.tx) : db.$transaction(admit);
 }
 export async function listRuns(actor: Actor) {
   return db.$transaction(async (tx) => {
@@ -323,6 +333,30 @@ export async function getRun(actor: Actor, id: string) {
       where: { id, workflow: { workspaceId: actor.workspaceId } },
       select: {
         ...runSelect,
+        whatsappMessages: {
+          select: {
+            id: true,
+            nodeId: true,
+            state: true,
+            kind: true,
+            providerMessageId: true,
+            recipientLast4: true,
+            error: true,
+            reviewedAt: true,
+            attempts: {
+              select: {
+                number: true,
+                state: true,
+                statusCode: true,
+                error: true,
+              },
+            },
+            statuses: {
+              orderBy: { providerAt: "asc" },
+              select: { state: true, providerAt: true },
+            },
+          },
+        },
         attempts: { orderBy: [{ nodeId: "asc" }, { number: "asc" }] },
         nodes: { orderBy: { position: "asc" } },
       },

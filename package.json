@@ -34,13 +34,18 @@
     "test:templates": "tsx --test tests/templates*.test.ts",
     "integrations:setup:local": "node scripts/setup-integrations.mjs",
     "db:seed:providers": "tsx scripts/seed-providers.ts",
-    "test:integrations": "tsx --test tests/integrations*.test.ts"
+    "test:integrations": "tsx --test tests/integrations*.test.ts",
+    "ops:backup": "node scripts/operations/backup.mjs",
+    "ops:restore": "node scripts/operations/restore.mjs",
+    "ops:check": "tsx scripts/operations/check-runtime.ts",
+    "test:security": "tsx --test tests/hardening.test.ts tests/recovery.test.ts tests/worker-shutdown.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "@radix-ui/react-slot": "1.5.0",
     "@xyflow/react": "12.12.0",
+    "ajv": "8.20.0",
     "better-auth": "1.7.14",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -51,10 +56,12 @@
     "lucide-react": "1.63.0",
     "next": "16.4.3",
     "nodemailer": "10.2.1",
+    "openai": "7.45.1",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "tailwind-merge": "3.7.0"
+    "tailwind-merge": "3.7.0",
+    "tsx": "4.23.15"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
@@ -68,9 +75,7 @@
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
     "prisma": "7.10.1",
-    "shadcn": "4.23.0",
     "tailwindcss": "4.3.3",
-    "tsx": "4.23.15",
     "typescript": "6.0.3"
   }
 }

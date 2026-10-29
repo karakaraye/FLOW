@@ -1,6 +1,30 @@
 # FlowPilot AI
 
-A multi-tenant automation SaaS foundation with real visual workflow creation, publishing, manual execution, and execution history. Accounts use Better Auth, PostgreSQL-backed sessions, and Prisma. A PostgreSQL-backed worker runs the four built-in node types. The React Flow builder edits the existing JSON engine format. Signed webhooks and approved HTTPS actions are available; Google OAuth adapters are available when configured (live verification remains pending); AI, payments, WhatsApp and production deployment remain outside this release.
+A multi-tenant automation SaaS foundation with real visual workflow creation, publishing, manual execution, and execution history. Accounts use Better Auth, PostgreSQL-backed sessions, and Prisma. A PostgreSQL-backed worker runs the four built-in node types. The React Flow builder edits the existing JSON engine format. Signed webhooks and approved HTTPS actions are available; Google OAuth adapters are available when configured (live verification remains pending); Controlled AI nodes and developer-owned Meta WhatsApp integration extend the same worker. Live Google, OpenAI and Meta verification remains pending; payments and production deployment remain outside this release.
+
+## TEST subscriptions and usage (Task 6A)
+
+Open **Billing and usage** for FREE, STARTER, BUSINESS and PRO proposals, actual usage/remaining allowances, verified payment history and cancellation. Default monthly NGN proposals are ₦0 / ₦5,000 / ₦15,000 / ₦35,000, stored as integer kobo. Annual prices are separate and disabled until explicitly configured; no discount is inferred. Prices/limits are centralized in `src/lib/billing/config.ts` with an optional complete catalog override illustrated by `config/billing-plans.example.json`.
+
+Billing defaults off. For an authorized sandbox setup, configure only the server-side `PAYSTACK_TEST_*` settings and dedicated `PAYSTACK_SECRET_KEY=sk_test_...` from `.env.example`, map the provider's TEST plans, approve exact `https://api.paystack.co` in the existing HTTP allowlist, and restart app/workers. Live keys are refused. Configure the authenticated TEST webhook at `/api/billing/paystack/webhook` on an authorized HTTPS test endpoint; this milestone does not publish or deploy one. No card form or card details are stored by FlowPilot.
+
+Checkout callbacks cannot activate plans. Signed events and server-side verification establish payment facts; a server-created, verified subscription binding is also required for paid entitlements. Initial recurring renewal starts after the already verified paid period. Ambiguous initialization/creation is held for reconciliation, never blindly repeated. Cancellation must be confirmed by Paystack; paid access lasts through its verified end date. Unpaid expiry has zero grace and falls back to FREE without deleting history. Paid-tier changes are period-boundary only, with no proration or automatic new purchase.
+
+Commercial allowances apply atomically to enabled workflows, executions, AI spend, integration slots, outgoing messages and worker concurrency. Counters reset by UTC calendar month and do not reset on upgrades/retries. Existing AI budgets, message consent/windows, approved recipients and other provider limits still apply. Subscription fees do not settle external provider bills. Read [TASK6A_VALIDATION.md](TASK6A_VALIDATION.md) for exact plans, quota policy, migrations, test evidence and limitations. **Actual Paystack test-mode API calls remain unverified**; automated financial behavior uses controlled fixtures. Nothing is ready or enabled for production billing.
+
+## WhatsApp Business (Task 5E)
+
+Official Meta Cloud API v26.0 supports signed inbound text triggers, service-window text replies and consented provider-approved utility templates. Open **Integrations → WhatsApp Business** for controlled developer onboarding, subscriptions, consent/suppression, templates, actual events and delivery/uncertainty audit. Customer Embedded Signup and production eligibility are not implemented. No real messages were sent during verification.
+
+The integration defaults to disabled. Set the server-only `META_*` values documented in `.env.example`, approve exact test assets and recipients, add `https://graph.facebook.com` to the approved HTTP origins, and restart the application and worker. App Secret/verification token stay server-only; access tokens are verified against the supplied assets and encrypted in the existing vault. Use a stable dedicated recipient HMAC key across token/App Secret/vault rotation. Configure nonzero daily limits knowingly. Real test recipients require explicit operator authorization.
+
+Apply additive migrations with `npm run db:migrate`, build with `npm run build`, then run `npm start` and `npm run worker` in separate terminals. Configure Meta's authenticated callback at `/api/integrations/whatsapp/webhook` and its messages subscription; publish and explicitly activate an incoming workflow version in the dashboard. API acceptance is not delivery. Unknown sends never automatically resend and block that recipient until reviewed. Local revocation requires separate token rotation/revocation in Meta.
+
+See [TASK5E_VALIDATION.md](TASK5E_VALIDATION.md) for exact evidence, identity/account-model research, retention, live-unverified status and production gaps. Unpublished import examples requiring configuration are in [examples/whatsapp](examples/whatsapp/README.md). No unofficial WhatsApp automation, bulk cold messaging, media handling, marketing broadcasts or inbox was added.
+
+## AI automation (Task 5D)
+
+Five AI nodes and an authenticated AI workspace/playground reuse the existing queue and vault. Models/pricing are operator-allowlisted; workspace budgets default to zero and uncertain costs remain reserved. OpenAI is unconfigured by default and no canned responses are substituted. Controlled-provider tests pass; **live OpenAI connectivity is UNVERIFIED**. See [TASK5D_VALIDATION.md](TASK5D_VALIDATION.md) for setup, strict schemas, accounting, privacy boundaries, exact verification and limitations.
 
 ## Google Sheets and Gmail (Task 5C)
 
@@ -121,3 +145,7 @@ Shared catalog management at `/platform/templates` requires a separate PlatformA
 For focused verification use `npm run test:templates`. Full Node and browser suites require the application and PostgreSQL running with ordinary workers stopped; they launch real controlled workers. Use a disposable database with the built-in catalog seeded and available. Authentication limits remain enabled: back-to-back suites may need their documented 60-second cooldown. Do not clear rate-limit rows or disable protections to make tests pass. Restart `npm run worker` afterwards.
 
 See [TASK4_VALIDATION.md](TASK4_VALIDATION.md) for models, exact template capabilities, API contracts, permission boundaries, provenance/copy semantics, results, browser artifacts, and limitations.
+
+## Task 6B operations and security
+
+Production preparation (no deployment): see [OPERATIONS.md](OPERATIONS.md), [SECURITY_REVIEW.md](SECURITY_REVIEW.md) and [TASK6B_VALIDATION.md](TASK6B_VALIDATION.md). Examples live under `deploy/`; encrypted backup/restore commands are `npm run ops:backup` and `npm run ops:restore`. `npm run test:security` runs focused security and disposable-database recovery tests. Explicit `FLOWPILOT_ENV=production` enables fail-closed deployment validation. Public registration/email recovery and live provider verification remain launch blockers.

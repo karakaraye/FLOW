@@ -1,9 +1,28 @@
 "use client";
+import Link from "next/link";
+import { AIRunResults } from "./ai-run-results";
 import dynamic from "next/dynamic";
 import type { Snapshot } from "./builder/run-canvas";
 const RunCanvas = dynamic(() => import("./builder/run-canvas"), { ssr: false });
 import { useEffect, useState } from "react";
 type RunView = {
+  whatsappMessages?: {
+    id: string;
+    nodeId: string;
+    state: string;
+    kind: string;
+    providerMessageId: string | null;
+    recipientLast4: string;
+    error: string | null;
+    reviewedAt: string | null;
+    attempts: {
+      number: number;
+      state: string;
+      statusCode: number | null;
+      error: string | null;
+    }[];
+    statuses: { state: string; providerAt: string }[];
+  }[];
   attempts?: {
     id: string;
     nodeId: string;
@@ -105,6 +124,44 @@ export function RunDetail({
           </p>
         </div>
       )}
+      {Boolean(run.whatsappMessages?.length) && (
+        <section className="mt-5 rounded-xl border p-4">
+          <h2 className="text-sm font-semibold">
+            WhatsApp send accounting and delivery
+          </h2>
+          <p className="mt-2 text-xs text-stone-500">
+            ACCEPTED is not delivery. Provider receipts are separate from
+            workflow success; reload for later delivery updates. UNKNOWN is
+            never automatically resent.
+          </p>
+          {run.whatsappMessages?.map((m) => (
+            <article className="mt-3 rounded border p-3 text-xs" key={m.id}>
+              <strong>
+                {m.nodeId} · {m.state} · ••••{m.recipientLast4}
+              </strong>
+              <p className="mt-2 break-all">
+                {m.providerMessageId ?? "No confirmed provider message ID"}
+              </p>
+              {m.error && <p className="mt-2 text-red-800">{m.error}</p>}
+              <p className="mt-2">
+                Attempts:{" "}
+                {m.attempts.map((a) => `${a.number}: ${a.state}`).join(", ")}
+              </p>
+              <p className="mt-2">
+                {m.statuses
+                  .map((s) => `${s.state} (${s.providerAt})`)
+                  .join(" → ") || "Delivery unconfirmed"}
+              </p>
+            </article>
+          ))}
+          <Link
+            className="mt-3 inline-block text-xs underline"
+            href="/integrations/whatsapp"
+          >
+            Open WhatsApp audit and operator review
+          </Link>
+        </section>
+      )}
       {Boolean(run.attempts?.length) && (
         <section className="mt-5 rounded-xl border p-4">
           <h2 className="font-semibold">HTTP attempts</h2>
@@ -121,6 +178,7 @@ export function RunDetail({
           </p>
         </section>
       )}
+      <AIRunResults workspaceId={workspaceId} runId={run.id} />
       <dl className="mt-6 grid gap-3 text-xs text-stone-500">
         <div>
           <dt className="inline font-semibold">Queued: </dt>

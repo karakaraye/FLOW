@@ -1,0 +1,20 @@
+[
+  {
+    "id": "your-approved-model",
+    "provider": "openai",
+    "model": "replace-with-a-current-responses-model",
+    "enabled": false,
+    "capabilities": [
+      "ai_classify",
+      "ai_summarize",
+      "ai_extract",
+      "ai_sentiment",
+      "ai_generate_text"
+    ],
+    "maxInputBytes": 6000,
+    "maxOutputTokens": 1024,
+    "inputMicrosPerMillion": "0",
+    "outputMicrosPerMillion": "0",
+    "pricingUpdatedAt": "2026-10-29"
+  }
+]

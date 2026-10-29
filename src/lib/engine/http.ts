@@ -1,6 +1,8 @@
+import { observe } from "../operations/observe";
+import { apiRate } from "../security/rate";
 import { auth } from "../auth";
 import { EngineError, LIMITS } from "./definition";
-export async function api(
+async function workspaceResponse(
   request: Request,
   workspaceId: string,
   action: (actor: { userId: string; workspaceId: string }) => Promise<unknown>,
@@ -19,6 +21,7 @@ export async function api(
           403,
         );
     }
+    await apiRate(session.user.id);
     return Response.json(
       await action({ userId: session.user.id, workspaceId }),
       { status, headers: { "Cache-Control": "private, no-store" } },
@@ -63,4 +66,15 @@ export async function body(request: Request): Promise<unknown> {
     if (error instanceof EngineError) throw error;
     throw new EngineError("INVALID_BODY", "Invalid JSON body.");
   }
+}
+
+export async function api(
+  request: Request,
+  workspaceId: string,
+  action: (actor: { userId: string; workspaceId: string }) => Promise<unknown>,
+  status = 200,
+) {
+  return observe(request, "workspace", () =>
+    workspaceResponse(request, workspaceId, action, status),
+  );
 }

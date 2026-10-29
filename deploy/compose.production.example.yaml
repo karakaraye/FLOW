@@ -1,0 +1,118 @@
+# EXAMPLE ONLY. No services are started by validating this file.
+services:
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["443:443", "80:80"]
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set the HTTPS host}
+    volumes:
+      - ./Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on: [web]
+    security_opt: ["no-new-privileges:true"]
+  web:
+    image: ${FLOWPILOT_IMAGE:?Use a reviewed immutable image digest}
+    init: true
+    restart: unless-stopped
+    env_file: ${WEB_ENV_FILE:?Provide a protected server environment file}
+    environment:
+      FLOWPILOT_ENV: production
+      FLOWPILOT_PROCESS_ROLE: web
+    command:
+      [
+        "node",
+        "node_modules/next/dist/bin/next",
+        "start",
+        "--hostname",
+        "0.0.0.0",
+      ]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [edge, database, outbound]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 8s
+      start_period: 45s
+    stop_grace_period: 180s
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+  worker:
+    image: ${FLOWPILOT_IMAGE:?Use the same reviewed image digest}
+    init: true
+    restart: unless-stopped
+    env_file: ${WORKER_ENV_FILE:?Provide a protected worker environment file}
+    environment:
+      FLOWPILOT_ENV: production
+      FLOWPILOT_PROCESS_ROLE: worker
+    command: ["node", "--import", "tsx", "scripts/worker.ts"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [database, outbound]
+    healthcheck:
+      test: ["CMD", "node", "scripts/operations/check-worker.mjs"]
+      interval: 15s
+      timeout: 8s
+      start_period: 45s
+    stop_grace_period: 180s
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: flowpilot
+      POSTGRES_USER: bootstrap_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    command:
+      [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/run/postgres/server.crt",
+        "-c",
+        "ssl_key_file=/run/postgres/server.key",
+        "-c",
+        "max_connections=100",
+        "-c",
+        "log_statement=none",
+        "-c",
+        "log_min_error_statement=panic",
+        "-c",
+        "idle_in_transaction_session_timeout=15000",
+      ]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_CERT_FILE:?Supply a valid database TLS certificate}:/run/postgres/server.crt:ro
+      - ${POSTGRES_KEY_FILE:?Supply a protected database TLS private key}:/run/postgres/server.key:ro
+    networks: [database]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bootstrap_admin -d flowpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+secrets:
+  db_password:
+    file: ${POSTGRES_PASSWORD_FILE:?Supply a protected bootstrap password file}
+networks:
+  edge:
+  database: { internal: true }
+  outbound:
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

@@ -1,3 +1,4 @@
+import { resourceLimit } from "../billing/quotas";
 import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { authorize } from "../engine/service";
@@ -112,6 +113,7 @@ export async function storeHttpCredential(
         "The connection changed during verification.",
         409,
       );
+    await resourceLimit(tx, actor.workspaceId, "integrations", 0);
     const old = await tx.integrationCredential.findUnique({
         where: { integrationId: id },
       }),

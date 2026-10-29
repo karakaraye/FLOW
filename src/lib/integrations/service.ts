@@ -1,3 +1,5 @@
+import { resourceLimit } from "../billing/quotas";
+import { metaConfigured } from "../whatsapp/provider";
 import { googleConfigured } from "../google/provider";
 import { isGoogleProvider } from "../google/config";
 import { randomUUID } from "node:crypto";
@@ -137,10 +139,15 @@ export async function listProviders(actor: Actor) {
       .map((p) => ({
         ...p,
         state:
-          isGoogleProvider(p.id) && googleConfigured() && p.state !== "DISABLED"
+          ((isGoogleProvider(p.id) && googleConfigured()) ||
+            (p.id === "whatsapp-business" && metaConfigured())) &&
+          p.state !== "DISABLED"
             ? "AVAILABLE"
             : p.state,
         available:
+          (p.id === "whatsapp-business" &&
+            metaConfigured() &&
+            p.state !== "DISABLED") ||
           (isGoogleProvider(p.id) &&
             googleConfigured() &&
             p.state !== "DISABLED") ||
@@ -257,6 +264,7 @@ export async function createConnection(actor: Actor, body: unknown) {
         "This workspace already has a connection record for this provider.",
         409,
       );
+    await resourceLimit(tx, actor.workspaceId, "integrations");
     const row = await tx.workspaceIntegration.create({
       data: {
         workspaceId: actor.workspaceId,
@@ -353,6 +361,7 @@ export async function saveCredential(
   secret: CredentialSet,
   refresh = false,
 ) {
+  await resourceLimit(tx, row.workspaceId, "integrations", 0);
   const expiresAt = new Date(secret.expiresAt);
   if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= new Date())
     throw new IntegrationFailure("AUTHENTICATION_FAILED");

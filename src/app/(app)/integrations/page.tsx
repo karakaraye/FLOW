@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireWorkspace } from "@/lib/session";
 import {
   listConnections,
@@ -30,8 +31,8 @@ export default async function Page({
       <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-500">
         Manage workspace connection metadata, local access, and sanitized audit
         history. Google Sheets and send-only Gmail require operator OAuth setup.
-        Approved HTTPS actions are available. WhatsApp Business and OpenAI are
-        Coming Soon.
+        Approved HTTPS actions are available. WhatsApp has controlled developer
+        onboarding. Customer Embedded Signup remains unavailable.
       </p>
       {googleResult === "authorization-failed" && (
         <p role="alert" className="mt-5 text-sm text-amber-800">
@@ -40,6 +41,12 @@ export default async function Page({
           message.
         </p>
       )}
+      <Link
+        href="/integrations/whatsapp"
+        className="mt-5 inline-flex rounded-lg border px-4 py-3 text-sm font-semibold"
+      >
+        Open WhatsApp Business
+      </Link>
       <IntegrationCatalog
         workspaceId={member.workspaceId}
         role={member.role}

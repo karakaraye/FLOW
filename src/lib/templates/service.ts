@@ -1,3 +1,4 @@
+import { resourceLimit } from "../billing/quotas";
 import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { authorize } from "../engine/service";
@@ -301,13 +302,14 @@ export async function installTemplate(
     if (
       (await tx.workflow.count({
         where: { workspaceId: actor.workspaceId },
-      })) >= 100
+      })) >= 2000
     )
       throw new EngineError(
         "WORKFLOW_LIMIT",
         "Workspace workflow limit reached.",
         429,
       );
+    await resourceLimit(tx, actor.workspaceId, "activeWorkflows");
     const workflow = await tx.workflow.create({
       data: {
         workspaceId: actor.workspaceId,

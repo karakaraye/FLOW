@@ -1,7 +1,8 @@
+import { observe } from "@/lib/operations/observe";
 import { receiveWebhook } from "@/lib/webhooks/service";
 import { EngineError } from "@/lib/engine/definition";
 export const runtime = "nodejs";
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ webhookId: string }> },
 ) {
@@ -23,4 +24,11 @@ export async function POST(
       },
     );
   }
+}
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ webhookId: string }> },
+) {
+  return observe(request, "flow-webhook", () => handlePOST(request, context));
 }
