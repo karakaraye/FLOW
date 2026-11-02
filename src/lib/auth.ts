@@ -7,23 +7,23 @@ import {
   sendUserPasswordResetEmail,
 } from "./email/dispatcher";
 
+const resolvedBaseUrl = process.env.BETTER_AUTH_URL || process.env.RENDER_EXTERNAL_URL;
+
 export const auth = betterAuth({
-  trustedOrigins: process.env.BETTER_AUTH_URL
-    ? [new URL(process.env.BETTER_AUTH_URL).origin]
+  trustedOrigins: resolvedBaseUrl
+    ? [new URL(resolvedBaseUrl).origin]
     : [],
   logger: { disabled: true },
   advanced: {
     useSecureCookies:
-      process.env.BETTER_AUTH_URL?.startsWith("https://") ?? false,
+      resolvedBaseUrl?.startsWith("https://") ?? false,
     defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
     ipAddress: {
-      ipAddressHeaders: production()
-        ? ["x-flowpilot-client-ip"]
-        : ["x-forwarded-for"],
+      ipAddressHeaders: ["x-flowpilot-client-ip", "x-forwarded-for"],
     },
   },
   appName: "FlowPilot AI",
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: resolvedBaseUrl,
   database: prismaAdapter(db, { provider: "postgresql", transaction: true }),
   emailVerification: {
     sendOnSignUp: true,

@@ -1,7 +1,11 @@
-# FlowPilot AI - Render Blueprint Spec
+# FlowPilot AI - Render Blueprint Specification
+# Deploy with 1-click in the Render Dashboard (Blueprints -> New Blueprint Instance)
 # Reference: https://render.com/docs/blueprint-spec
+
 services:
-  # 1. FlowPilot Web Service
+  # ============================================================================
+  # 1. FlowPilot Web Service (Next.js 16 App Router)
+  # ============================================================================
   - type: web
     name: flowpilot-web
     runtime: docker
@@ -10,6 +14,8 @@ services:
     region: oregon
     numInstances: 1
     healthCheckPath: /api/health/live
+    # Runs database migrations and seeds template catalogs before traffic shifts to new build
+    preDeployCommand: npx prisma migrate deploy && node --import tsx scripts/seed-templates.ts && node --import tsx scripts/seed-providers.ts
     envVars:
       - key: NODE_ENV
         value: production
@@ -17,12 +23,12 @@ services:
         value: production
       - key: FLOWPILOT_PROCESS_ROLE
         value: web
+      - key: PORT
+        value: "3000"
       - key: DATABASE_URL
         fromDatabase:
           name: flowpilot-db
           property: connectionString
-      - key: BETTER_AUTH_URL
-        generateValue: true
       - key: BETTER_AUTH_SECRET
         generateValue: true
       - key: OPERATIONS_TOKEN
@@ -31,8 +37,28 @@ services:
         value: "10"
       - key: AUTH_REGISTRATION_ENABLED
         value: "true"
+      # AES-256-GCM Vault Keyring for OAuth tokens and integration keys
+      - key: INTEGRATION_ACTIVE_KEY_ID
+        value: prod-vault-v1
+      - key: INTEGRATION_ENCRYPTION_KEYS
+        value: '{"prod-vault-v1":"pRHAa/js+rKChIP/Fgw1phU7lcOyHJ6lpBaXYhTfhUI="}'
+      # SSRF & Outbound HTTP Security Rules
+      - key: HTTP_ACTION_ALLOWED_ORIGINS
+        value: '["https://api.openai.com","https://oauth2.googleapis.com","https://www.googleapis.com","https://sheets.googleapis.com","https://gmail.googleapis.com","https://graph.facebook.com","https://api.paystack.co"]'
+      - key: HTTP_IDEMPOTENT_ORIGINS
+        value: '["https://api.openai.com","https://api.paystack.co"]'
+      # Optional: set your Resend API Key for live transactional email delivery
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "FlowPilot AI <no-reply@flowpilot.ai>"
+      # Optional: set custom domain if not using Render default *.onrender.com URL
+      - key: BETTER_AUTH_URL
+        sync: false
 
+  # ============================================================================
   # 2. FlowPilot Durable Queue Worker
+  # ============================================================================
   - type: worker
     name: flowpilot-worker
     runtime: docker
@@ -62,12 +88,35 @@ services:
           type: web
           name: flowpilot-web
           envVarKey: OPERATIONS_TOKEN
+      - key: INTEGRATION_ACTIVE_KEY_ID
+        fromService:
+          type: web
+          name: flowpilot-web
+          envVarKey: INTEGRATION_ACTIVE_KEY_ID
+      - key: INTEGRATION_ENCRYPTION_KEYS
+        fromService:
+          type: web
+          name: flowpilot-web
+          envVarKey: INTEGRATION_ENCRYPTION_KEYS
+      - key: HTTP_ACTION_ALLOWED_ORIGINS
+        fromService:
+          type: web
+          name: flowpilot-web
+          envVarKey: HTTP_ACTION_ALLOWED_ORIGINS
+      - key: HTTP_IDEMPOTENT_ORIGINS
+        fromService:
+          type: web
+          name: flowpilot-web
+          envVarKey: HTTP_IDEMPOTENT_ORIGINS
       - key: DB_POOL_MAX
         value: "5"
 
+# ==============================================================================
+# 3. FlowPilot Managed PostgreSQL Database
+# ==============================================================================
 databases:
   - name: flowpilot-db
     plan: starter
     region: oregon
-    postgresMajorVersion: "17"
-
+    databaseName: flowpilot
+    user: flowpilot

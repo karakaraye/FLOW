@@ -19,7 +19,7 @@ export function runtimeIssues(
   if (!production(env)) return issues;
   let origin: URL | undefined;
   try {
-    origin = new URL(env.BETTER_AUTH_URL ?? "");
+    origin = new URL(env.BETTER_AUTH_URL || env.RENDER_EXTERNAL_URL || "");
     if (
       origin.protocol !== "https:" ||
       loopback(origin.hostname) ||
@@ -45,7 +45,7 @@ export function runtimeIssues(
     const u = new URL(env.DATABASE_URL ?? "");
     if (
       !["postgres:", "postgresql:"].includes(u.protocol) ||
-      u.searchParams.get("sslmode") !== "verify-full"
+      (!["verify-full", "require"].includes(u.searchParams.get("sslmode") ?? "") && !u.hostname.includes("dpg-") && !u.hostname.endsWith(".render.com"))
     )
       issues.push("DATABASE_TLS_REQUIRED");
   } catch {

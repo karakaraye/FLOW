@@ -28,7 +28,7 @@ services:
     restart: "no"
     env_file:
       - ../.env
-    command: ["sh", "-c", "npx prisma migrate deploy && node --import tsx scripts/seed-templates.ts && node --import tsx scripts/seed-providers.ts"]
+    command: [ "sh", "-c", "npx prisma migrate deploy && node --import tsx scripts/seed-templates.ts && node --import tsx scripts/seed-providers.ts" ]
     networks:
       - internal
     depends_on:
@@ -55,7 +55,7 @@ services:
       migrator:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +75,7 @@ services:
       NODE_ENV: production
       FLOWPILOT_ENV: production
       FLOWPILOT_PROCESS_ROLE: worker
-    command: ["node", "--import", "tsx", "scripts/worker.ts"]
+    command: [ "node", "--import", "tsx", "scripts/worker.ts" ]
     networks:
       - internal
     depends_on:
@@ -84,7 +84,7 @@ services:
       migrator:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
+      test: [ "CMD", "node", "-e", "process.exit(0)" ]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -104,7 +104,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 5s
       retries: 10
