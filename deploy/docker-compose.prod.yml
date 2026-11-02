@@ -1,0 +1,121 @@
+# FlowPilot AI - Production Docker Compose Stack (DigitalOcean & VPS)
+# Run: docker compose -f deploy/docker-compose.prod.yml up -d
+services:
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+    security_opt:
+      - "no-new-privileges:true"
+
+  migrator:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: "no"
+    env_file:
+      - ../.env
+    command: ["sh", "-c", "npx prisma migrate deploy && node --import tsx scripts/seed-templates.ts && node --import tsx scripts/seed-providers.ts"]
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      FLOWPILOT_ENV: production
+      FLOWPILOT_PROCESS_ROLE: web
+    networks:
+      - edge
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 30s
+    security_opt:
+      - "no-new-privileges:true"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      FLOWPILOT_ENV: production
+      FLOWPILOT_PROCESS_ROLE: worker
+    command: ["node", "--import", "tsx", "scripts/worker.ts"]
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    stop_grace_period: 180s
+    security_opt:
+      - "no-new-privileges:true"
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-flowpilot}
+      POSTGRES_USER: ${POSTGRES_USER:-flowpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - "no-new-privileges:true"
+
+networks:
+  edge:
+  internal:
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_prod_data:

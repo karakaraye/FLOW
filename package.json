@@ -21,6 +21,7 @@
     "test:database": "tsx --test tests/database.test.ts",
     "test:public": "tsx --test tests/public.test.ts",
     "test:auth": "tsx --test tests/foundation.test.ts",
+    "test:email": "tsx --test tests/email-and-runtime.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "setup:env": "node scripts/setup-env.mjs",
@@ -38,6 +39,8 @@
     "ops:backup": "node scripts/operations/backup.mjs",
     "ops:restore": "node scripts/operations/restore.mjs",
     "ops:check": "tsx scripts/operations/check-runtime.ts",
+    "ops:generate-secrets": "node scripts/operations/generate-production-secrets.mjs",
+    "ops:check-prod": "tsx scripts/operations/verify-production-env.ts",
     "test:security": "tsx --test tests/hardening.test.ts tests/recovery.test.ts tests/worker-shutdown.test.ts"
   },
   "dependencies": {
@@ -61,7 +64,8 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "tailwind-merge": "3.7.0",
-    "tsx": "4.23.15"
+    "tsx": "4.23.15",
+    "prisma": "7.10.1"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
@@ -74,7 +78,6 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
-    "prisma": "7.10.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3"
   }

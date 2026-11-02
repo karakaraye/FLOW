@@ -1,0 +1,99 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Prisma Schema
+        run: npm run db:validate
+
+      - name: TypeScript Check
+        run: npm run typecheck
+
+      - name: ESLint Check
+        run: npm run lint
+
+      - name: Prettier Format Check
+        run: npm run format:check
+
+  test-suite:
+    name: Automated Tests & Security
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: flowpilot
+          POSTGRES_PASSWORD: flowpilot-ci-password-safe-for-ephemeral-test
+          POSTGRES_DB: flowpilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://flowpilot:flowpilot-ci-password-safe-for-ephemeral-test@localhost:5432/flowpilot?schema=public
+      BETTER_AUTH_SECRET: ci-ephemeral-test-auth-secret-minimum-32-characters-long
+      BETTER_AUTH_URL: http://localhost:3000
+      FLOWPILOT_ENV: development
+      OPERATIONS_TOKEN: ci-ephemeral-operations-token-minimum-32-characters
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup local integration keys for tests
+        run: node scripts/setup-integrations.mjs
+
+      - name: Deploy Prisma Migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed Templates & Providers
+        run: |
+          npm run db:seed:templates
+          npm run db:seed:providers
+
+      - name: Run Core Test Suite
+        run: npm test
+
+      - name: Run Security & Hardening Tests
+        run: npm run test:security
+
+      - name: Verify Runtime Configuration
+        run: npm run ops:check
+

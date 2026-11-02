@@ -2,6 +2,11 @@ import { production } from "./security/runtime";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { db } from "./db";
+import {
+  sendUserVerificationEmail,
+  sendUserPasswordResetEmail,
+} from "./email/dispatcher";
+
 export const auth = betterAuth({
   trustedOrigins: process.env.BETTER_AUTH_URL
     ? [new URL(process.env.BETTER_AUTH_URL).origin]
@@ -20,11 +25,20 @@ export const auth = betterAuth({
   appName: "FlowPilot AI",
   baseURL: process.env.BETTER_AUTH_URL,
   database: prismaAdapter(db, { provider: "postgresql", transaction: true }),
+  emailVerification: {
+    sendOnSignUp: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendUserVerificationEmail(user, url);
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: production(),
     minPasswordLength: 12,
     maxPasswordLength: 128,
+    sendResetPassword: async ({ user, url }) => {
+      await sendUserPasswordResetEmail(user, url);
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7,

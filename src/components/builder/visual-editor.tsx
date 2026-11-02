@@ -31,16 +31,26 @@ import {
   Upload,
   Play,
   Plus,
+  Sparkles,
+  Search,
+  Layers,
+  Wand2,
 } from "lucide-react";
+import {
+  generateWorkflowFromPrompt,
+  COPILOT_PRESETS,
+} from "@/lib/builder/ai-copilot";
 import { Button } from "../ui/button";
 import { nodeTypes } from "./engine-node";
 import { initialAIConfig } from "./ai-fields";
 import { NodePanel } from "./node-panel";
+import { TestRunnerDrawer } from "./test-runner-drawer";
 import {
   connect,
   fingerprint,
   historyReducer,
   nodeTitles,
+  purposes,
   normalizeDocument,
   remove,
   toCanvas,
@@ -118,6 +128,16 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
     edges: string[];
   }>({ nodes: [], edges: [] });
   const [panelDirty, setPanelDirty] = useState(false);
+  const [nodeCategory, setNodeCategory] = useState<
+    "all" | "triggers" | "ai" | "integrations" | "logic"
+  >("all");
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [showCopilot, setShowCopilot] = useState(
+    () => doc.definition.nodes.length <= 1,
+  );
+  const [copilotPrompt, setCopilotPrompt] = useState("");
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [showTestRunner, setShowTestRunner] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const dragging = useRef(false);
@@ -520,6 +540,145 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
       setPending(false);
     }
   }
+  function autoLayout() {
+    if (!editable || doc.definition.nodes.length === 0) return;
+    dispatch({ type: "checkpoint" });
+
+    const inDegree: Record<string, number> = {};
+    for (const n of doc.definition.nodes) inDegree[n.id] = 0;
+    for (const e of doc.definition.edges) inDegree[e.to] = (inDegree[e.to] || 0) + 1;
+
+    const level: Record<string, number> = {};
+    const queue: string[] = [];
+    for (const n of doc.definition.nodes) {
+      if (inDegree[n.id] === 0) {
+        level[n.id] = 0;
+        queue.push(n.id);
+      }
+    }
+    if (queue.length === 0 && doc.definition.nodes.length > 0) {
+      level[doc.definition.nodes[0].id] = 0;
+      queue.push(doc.definition.nodes[0].id);
+    }
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const currLevel = level[curr] ?? 0;
+      const outgoing = doc.definition.edges.filter((e) => e.from === curr);
+      for (const e of outgoing) {
+        if (level[e.to] === undefined || level[e.to] < currLevel + 1) {
+          level[e.to] = currLevel + 1;
+          queue.push(e.to);
+        }
+      }
+    }
+
+    let maxLevel = 0;
+    for (const n of doc.definition.nodes) {
+      if (level[n.id] === undefined) level[n.id] = maxLevel + 1;
+      if (level[n.id] > maxLevel) maxLevel = level[n.id];
+    }
+
+    const byLevel: Record<number, string[]> = {};
+    for (const n of doc.definition.nodes) {
+      const lvl = level[n.id] ?? 0;
+      if (!byLevel[lvl]) byLevel[lvl] = [];
+      byLevel[lvl].push(n.id);
+    }
+
+    const newNodes: Record<string, { x: number; y: number; label: string }> = {};
+    for (const [lvlStr, ids] of Object.entries(byLevel)) {
+      const lvl = Number(lvlStr);
+      ids.forEach((id, index) => {
+        const existingNode = doc.definition.nodes.find((n) => n.id === id);
+        newNodes[id] = {
+          x: lvl * 320 + 40,
+          y: index * 170 + 100,
+          label:
+            doc.editor.nodes[id]?.label ??
+            (existingNode ? nodeTitles[existingNode.type] : id),
+        };
+      });
+    }
+
+    apply(
+      {
+        ...doc,
+        editor: {
+          schemaVersion: 1,
+          nodes: newNodes,
+        },
+      },
+      "change",
+    );
+    setTimeout(() => {
+      flow.fitView({ padding: 0.25 });
+    }, 50);
+  }
+
+  const nodeCategories = [
+    { id: "all", label: "All" },
+    { id: "triggers", label: "Triggers" },
+    { id: "ai", label: "AI" },
+    { id: "integrations", label: "Apps" },
+    { id: "logic", label: "Logic" },
+  ] as const;
+
+  const filteredAvailable = useMemo(() => {
+    return available.filter((kind) => {
+      if (nodeCategory === "triggers") {
+        if (
+          !["manual_trigger", "webhook_trigger", "whatsapp_message_received"].includes(
+            kind,
+          )
+        )
+          return false;
+      } else if (nodeCategory === "ai") {
+        if (!kind.startsWith("ai_")) return false;
+      } else if (nodeCategory === "integrations") {
+        if (
+          !kind.startsWith("google_") &&
+          !kind.startsWith("gmail_") &&
+          !kind.startsWith("whatsapp_send") &&
+          kind !== "http_request"
+        )
+          return false;
+      } else if (nodeCategory === "logic") {
+        if (!["set_data", "condition", "log_event"].includes(kind)) return false;
+      }
+      if (nodeSearch.trim()) {
+        const q = nodeSearch.toLowerCase();
+        const title = (nodeTitles[kind] ?? "").toLowerCase();
+        const desc = (purposes[kind] ?? "").toLowerCase();
+        return title.includes(q) || desc.includes(q) || kind.includes(q);
+      }
+      return true;
+    });
+  }, [nodeCategory, nodeSearch]);
+
+  function handleGenerateCopilot(customPrompt?: string) {
+    const text = customPrompt || copilotPrompt;
+    if (!text.trim() || !editable) return;
+    setCopilotLoading(true);
+    setError("");
+    try {
+      const generated = generateWorkflowFromPrompt(text);
+      apply(generated, "change");
+      setSavedFingerprint("");
+      setMessage(
+        `✨ AI planned & generated "${generated.name}" with ${generated.definition.nodes.length} steps!`,
+      );
+      setTimeout(() => {
+        flow.fitView({ padding: 0.25 });
+      }, 100);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to generate workflow.",
+      );
+    } finally {
+      setCopilotLoading(false);
+    }
+  }
+
   const onDirty = useCallback((value: boolean) => setPanelDirty(value), []);
   return (
     <div
@@ -609,7 +768,7 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-x border-border bg-stone-50 px-4 py-3">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -655,46 +814,242 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
             <CheckCircle2 size={15} />
             Validate graph
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Auto-align steps in sequence"
+            title="Auto-align steps in clean sequence"
+            disabled={!editable || doc.definition.nodes.length <= 1}
+            onClick={autoLayout}
+            className="flex items-center gap-1.5 text-xs text-stone-700"
+          >
+            <Sparkles size={14} className="text-teal-700" />
+            <span>Auto-align</span>
+          </Button>
+          <Button
+            variant={showTestRunner ? "default" : "outline"}
+            size="sm"
+            aria-label="Test Flow Execution"
+            title="Run interactive step simulation"
+            onClick={() => setShowTestRunner(!showTestRunner)}
+            className={`flex items-center gap-1.5 text-xs ${
+              showTestRunner
+                ? "bg-teal-800 text-white hover:bg-teal-900"
+                : "border-teal-300 text-teal-800 hover:bg-teal-50"
+            }`}
+          >
+            <Play size={13} fill="currentColor" />
+            <span>Test Flow</span>
+          </Button>
+          <Button
+            variant={showCopilot ? "default" : "outline"}
+            size="sm"
+            aria-label="Toggle AI Copilot"
+            onClick={() => setShowCopilot(!showCopilot)}
+            className={`flex items-center gap-1.5 text-xs ${
+              showCopilot
+                ? "bg-purple-700 text-white hover:bg-purple-800"
+                : "border-purple-200 text-purple-700 hover:text-purple-900"
+            }`}
+          >
+            <Wand2 size={13} />
+            <span>AI Copilot</span>
+          </Button>
         </div>
         <p className="text-[10px] text-stone-500">
           Ctrl/⌘ S save · Z undo · Shift Z redo · Delete selection
         </p>
       </div>
-      <div className="grid min-w-0 border border-border bg-white xl:grid-cols-[160px_minmax(0,1fr)_260px]">
-        <aside
-          aria-label="Node palette"
-          className="border-b border-border bg-white p-3 xl:border-r xl:border-b-0"
-        >
-          <h2 className="mb-3 text-xs font-bold tracking-wide uppercase">
-            Add a step
-          </h2>
-          <p className="mb-3 text-[10px] leading-5 text-stone-500">
-            Drag onto the canvas, or select a button to add.
-          </p>
-          <div className="grid max-h-[520px] grid-cols-2 gap-2 overflow-y-auto xl:grid-cols-1">
-            {available.map((kind) => (
+
+      {showCopilot && (
+        <div className="border-x border-b border-border bg-gradient-to-r from-purple-50/80 via-stone-50 to-teal-50/80 p-4 transition">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-600 text-white shadow-xs">
+                <Wand2 size={14} />
+              </span>
+              <div>
+                <h3 className="flex items-center gap-2 text-xs font-bold text-stone-900">
+                  AI Workflow Copilot
+                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-800">
+                    Prompt-to-Flow
+                  </span>
+                </h3>
+                <p className="text-[11px] text-stone-600">
+                  Describe what you want to automate in plain English. The AI will plan and generate the steps for you.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCopilot(false)}
+              className="text-[11px] font-medium text-stone-400 hover:text-stone-700"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={copilotPrompt}
+              disabled={!editable || copilotLoading}
+              onChange={(e) => setCopilotPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleGenerateCopilot();
+                }
+              }}
+              placeholder="e.g. When a lead fills our form, summarize with AI, save to Google Sheets, and notify on WhatsApp..."
+              className="flex-1 rounded-xl border border-purple-200 bg-white px-3.5 py-2 text-xs text-stone-900 placeholder-stone-400 shadow-xs focus:border-purple-600 focus:outline-none"
+            />
+            <Button
+              size="sm"
+              disabled={!editable || !copilotPrompt.trim() || copilotLoading}
+              onClick={() => handleGenerateCopilot()}
+              className="bg-purple-700 text-white hover:bg-purple-800 shrink-0 shadow-xs"
+            >
+              <Sparkles size={14} />
+              {copilotLoading ? "Generating..." : "Generate Workflow ✨"}
+            </Button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+              Quick Ideas:
+            </span>
+            {COPILOT_PRESETS.map((preset) => (
               <button
+                key={preset.label}
                 type="button"
-                key={kind}
-                data-testid={`add-${kind}`}
-                disabled={!editable}
-                draggable={editable}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("application/flowpilot-node", kind);
-                  e.dataTransfer.effectAllowed = "move";
+                onClick={() => {
+                  setCopilotPrompt(preset.prompt);
+                  handleGenerateCopilot(preset.prompt);
                 }}
-                onClick={() => add(kind)}
-                className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-3 text-left text-xs font-medium hover:border-teal-700 focus-visible:outline-2 focus-visible:outline-teal-700 disabled:opacity-40"
+                className="rounded-lg border border-purple-200/80 bg-white/90 px-2.5 py-1 text-[11px] font-medium text-purple-900 transition hover:border-purple-400 hover:bg-white shadow-2xs"
+                title={preset.description}
               >
-                <Plus size={14} />
-                {nodeTitles[kind]}
+                ✨ {preset.label}
               </button>
             ))}
           </div>
-          <p className="mt-4 text-[10px] leading-5 text-stone-500">
+        </div>
+      )}
+      <div className="grid min-w-0 border border-border bg-white xl:grid-cols-[220px_minmax(0,1fr)_270px]">
+        <aside
+          aria-label="Node palette"
+          className="flex flex-col border-b border-border bg-white p-3 xl:border-r xl:border-b-0"
+        >
+          <div className="mb-2">
+            <h2 className="text-xs font-bold tracking-wide uppercase text-stone-900">
+              Add a step
+            </h2>
+            <p className="mt-0.5 text-[10px] leading-4 text-stone-500">
+              Drag onto the canvas or click to add.
+            </p>
+          </div>
+
+          <div className="mb-2.5">
+            <div className="relative">
+              <Search
+                size={12}
+                className="absolute top-2.5 left-2 text-stone-400"
+              />
+              <input
+                type="text"
+                value={nodeSearch}
+                onChange={(e) => setNodeSearch(e.target.value)}
+                placeholder="Filter steps..."
+                className="w-full rounded-md border border-border bg-stone-50 py-1 pr-2 pl-6 text-[11px] text-stone-800 placeholder-stone-400 focus:bg-white"
+              />
+            </div>
+
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {nodeCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setNodeCategory(c.id)}
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                    nodeCategory === c.id
+                      ? "bg-teal-800 text-white"
+                      : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid max-h-[500px] grid-cols-1 gap-1.5 overflow-y-auto pr-0.5">
+            {filteredAvailable.map((kind) => {
+              const isTrigger =
+                kind.includes("trigger") ||
+                kind === "whatsapp_message_received";
+              const isAI = kind.startsWith("ai_");
+              const isApp =
+                kind.startsWith("google_") ||
+                kind.startsWith("gmail_") ||
+                kind.startsWith("whatsapp_send") ||
+                kind === "http_request";
+              const badgeLabel = isTrigger
+                ? "Trigger"
+                : isAI
+                  ? "AI"
+                  : isApp
+                    ? "App"
+                    : "Logic";
+              const badgeColor = isTrigger
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : isAI
+                  ? "bg-purple-50 text-purple-700 border-purple-200"
+                  : isApp
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200";
+
+              return (
+                <button
+                  type="button"
+                  key={kind}
+                  data-testid={`add-${kind}`}
+                  disabled={!editable}
+                  draggable={editable}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/flowpilot-node", kind);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onClick={() => add(kind)}
+                  className="flex flex-col gap-0.5 rounded-lg border border-border bg-white p-2 text-left text-xs font-medium hover:border-teal-700 hover:bg-stone-50/60 focus-visible:outline-2 focus-visible:outline-teal-700 disabled:opacity-40"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="flex items-center gap-1.5 text-stone-900 font-semibold text-[11px]">
+                      <Plus size={11} className="text-teal-700 shrink-0" />
+                      {nodeTitles[kind]}
+                    </span>
+                    <span
+                      className={`rounded border px-1 py-0.2 text-[9px] font-normal uppercase ${badgeColor}`}
+                    >
+                      {badgeLabel}
+                    </span>
+                  </div>
+                  <p className="line-clamp-1 text-[10px] font-normal text-stone-500">
+                    {purposes[kind]}
+                  </p>
+                </button>
+              );
+            })}
+            {filteredAvailable.length === 0 && (
+              <p className="py-4 text-center text-xs text-stone-400">
+                No matching steps.
+              </p>
+            )}
+          </div>
+          <p className="mt-3 text-[10px] leading-4 text-stone-500">
             {canEdit
-              ? "Connect handles by dragging or clicking source then target. Use the connection form below for keyboard access."
-              : "VIEWER · Read-only canvas. You can inspect nodes and pan or zoom."}
+              ? "Connect handles by dragging or clicking source then target."
+              : "VIEWER · Read-only canvas."}
           </p>
         </aside>
         <div
@@ -1065,6 +1420,18 @@ function Editor({ workspaceId, role, workflow }: EditorProps) {
           Your EDITOR role can save and run. An OWNER or ADMIN must publish.
         </p>
       )}
+      <TestRunnerDrawer
+        definition={doc.definition}
+        labels={doc.editor.nodes}
+        isOpen={showTestRunner}
+        onClose={() => setShowTestRunner(false)}
+      />
+      <TestRunnerDrawer
+        definition={doc.definition}
+        labels={doc.editor.nodes}
+        isOpen={showTestRunner}
+        onClose={() => setShowTestRunner(false)}
+      />
     </div>
   );
 }

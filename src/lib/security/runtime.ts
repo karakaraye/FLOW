@@ -75,19 +75,51 @@ export function runtimeIssues(
     env.FLOWPILOT_AI_TEST_LABEL === "MOCK"
   )
     issues.push("TEST_CONFIGURATION_FORBIDDEN");
+
+  if (env.FLOWPILOT_PROVIDERS_VERIFIED === "true") {
+    if (
+      env.FLOWPILOT_OPENAI_API_KEY &&
+      (!env.FLOWPILOT_OPENAI_API_KEY.startsWith("sk-") ||
+        env.FLOWPILOT_OPENAI_API_KEY.length < 20)
+    )
+      issues.push("OPENAI_KEY_INVALID");
+    if (
+      env.META_WHATSAPP_DEVELOPER_ENABLED === "true" &&
+      (!env.META_APP_ID ||
+        !env.META_APP_SECRET ||
+        !env.META_RECIPIENT_HASH_KEY)
+    )
+      issues.push("WHATSAPP_CREDENTIALS_INCOMPLETE");
+    if (
+      env.GOOGLE_GMAIL_SEND_ENABLED === "true" &&
+      (!env.GOOGLE_OAUTH_CLIENT_ID || !env.GOOGLE_OAUTH_CLIENT_SECRET)
+    )
+      issues.push("GOOGLE_CREDENTIALS_INCOMPLETE");
+  } else {
+    if (
+      env.PAYSTACK_TEST_ENABLED === "true" ||
+      env.META_WHATSAPP_DEVELOPER_ENABLED === "true" ||
+      env.GOOGLE_GMAIL_SEND_ENABLED === "true" ||
+      !!env.FLOWPILOT_OPENAI_API_KEY ||
+      !!env.GOOGLE_OAUTH_CLIENT_ID ||
+      !!env.GOOGLE_OAUTH_CLIENT_SECRET
+    )
+      issues.push("UNVERIFIED_EXTERNAL_ACTIVATION_FORBIDDEN");
+  }
+
   if (
-    env.PAYSTACK_TEST_ENABLED === "true" ||
-    env.META_WHATSAPP_DEVELOPER_ENABLED === "true" ||
-    env.GOOGLE_GMAIL_SEND_ENABLED === "true" ||
-    !!env.FLOWPILOT_OPENAI_API_KEY ||
-    !!env.GOOGLE_OAUTH_CLIENT_ID ||
-    !!env.GOOGLE_OAUTH_CLIENT_SECRET
+    env.PAYSTACK_SECRET_KEY?.startsWith("sk_live_") &&
+    env.PAYSTACK_LIVE_ENABLED !== "true"
   )
-    issues.push("UNVERIFIED_EXTERNAL_ACTIVATION_FORBIDDEN");
-  if (env.PAYSTACK_SECRET_KEY?.startsWith("sk_live_"))
     issues.push("LIVE_BILLING_FORBIDDEN");
-  if (env.AUTH_REGISTRATION_ENABLED === "true")
-    issues.push("PUBLIC_REGISTRATION_NOT_READY");
+
+  if (env.AUTH_REGISTRATION_ENABLED === "true") {
+    const hasEmail = Boolean(
+      env.RESEND_API_KEY || env.SMTP_URL || env.SMTP_HOST,
+    );
+    if (!hasEmail) issues.push("PUBLIC_REGISTRATION_EMAIL_REQUIRED");
+  }
+
   if (env.NODE_TLS_REJECT_UNAUTHORIZED === "0")
     issues.push("TLS_VERIFICATION_DISABLED");
   if (

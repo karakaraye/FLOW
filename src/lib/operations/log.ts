@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+// standard web crypto randomUUID used
 const events = [
   "APPLICATION_EVENT",
   "API_RESPONSE",
@@ -24,7 +24,7 @@ const routes = [
 ];
 export function requestId(request?: Request) {
   const id = request?.headers.get("x-request-id");
-  return id && /^[a-f0-9-]{36}$/i.test(id) ? id : randomUUID();
+  return id && /^[a-f0-9-]{36}$/i.test(id) ? id : crypto.randomUUID();
 }
 export function logRecord(event: string, input: Record<string, unknown> = {}) {
   const out: Record<string, unknown> = {

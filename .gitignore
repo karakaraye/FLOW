@@ -10,3 +10,7 @@ test-results/
 deploy/secrets/
 *.backup.enc
 *.backup.enc.json
+.neon
+
+.agents/
+skills-lock.json

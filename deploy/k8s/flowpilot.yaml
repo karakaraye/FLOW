@@ -1,0 +1,158 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flowpilot-web
+  labels:
+    app: flowpilot-web
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: flowpilot-web
+  template:
+    metadata:
+      labels:
+        app: flowpilot-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/flowpilot/flowpilot-ai:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: flowpilot-secrets
+            - configMapRef:
+                name: flowpilot-config
+          env:
+            - name: FLOWPILOT_PROCESS_ROLE
+              value: "web"
+          ports:
+            - containerPort: 3000
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flowpilot-worker
+  labels:
+    app: flowpilot-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flowpilot-worker
+  template:
+    metadata:
+      labels:
+        app: flowpilot-worker
+    spec:
+      terminationGracePeriodSeconds: 180
+      containers:
+        - name: worker
+          image: ghcr.io/flowpilot/flowpilot-ai:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "--import", "tsx", "scripts/worker.ts"]
+          envFrom:
+            - secretRef:
+                name: flowpilot-secrets
+            - configMapRef:
+                name: flowpilot-config
+          env:
+            - name: FLOWPILOT_PROCESS_ROLE
+              value: "worker"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowpilot-web
+  labels:
+    app: flowpilot-web
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+  selector:
+    app: flowpilot-web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flowpilot-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-FlowPilot-Client-IP $remote_addr;
+spec:
+  tls:
+    - hosts:
+        - app.flowpilot.ai
+      secretName: flowpilot-tls
+  rules:
+    - host: app.flowpilot.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flowpilot-web
+                port:
+                  number: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: flowpilot-web-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: flowpilot-web
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+
